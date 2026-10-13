@@ -100,6 +100,30 @@ class BankAccount(Model):
             raise ValueError('Invalid bank account')
         return self
 
+class PixKey(Model):
+    key_type: StrictStr
+    key: StrictStr = Field(min_length=1, max_length=77)
+
+    @model_validator(mode='after')
+    def validate_key(self):
+        if self.key_type == 'cpf':
+            valid = valid_cpf(self.key)
+        elif self.key_type == 'email':
+            self.key = self.key.lower()
+            valid = bool(re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+', self.key))
+        elif self.key_type == 'phone':
+            valid = bool(re.fullmatch(r'\+[1-9]\d{1,14}', self.key))
+            if self.key.startswith('+55'):
+                valid = valid and bool(re.fullmatch(r'\+55[1-9]\d9\d{8}', self.key))
+        elif self.key_type == 'random':
+            self.key = self.key.lower()
+            valid = bool(re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', self.key))
+        else:
+            valid = False
+        if not valid:
+            raise ValueError('Invalid Pix key')
+        return self
+
 class Loan(Model):
     amount_requested: StrictInt
     installments_requested: StrictInt
@@ -130,7 +154,9 @@ class Application(Model):
     password: Annotated[StrictStr, StringConstraints(strip_whitespace=False)] = Field(min_length=7, max_length=128, repr=False)
     address: Address
     income: Income
-    bank_account: BankAccount
+    disbursement_method: StrictStr = 'bank'
+    bank_account: BankAccount | None = None
+    pix: PixKey | None = None
     loan: Loan
     consents: Consents
 
@@ -138,6 +164,16 @@ class Application(Model):
     def validate_version(self):
         if self.schema_version != 1 or not self.password.strip():
             raise ValueError('Invalid application')
+        if self.disbursement_method == 'bank':
+            if self.bank_account is None or self.pix is not None:
+                raise ValueError('Bank account required')
+        elif self.disbursement_method == 'pix':
+            if self.pix is None or self.bank_account is not None:
+                raise ValueError('Pix key required')
+            if self.pix.key_type == 'cpf' and self.pix.key != self.applicant.cpf:
+                raise ValueError('Pix CPF must match applicant')
+        else:
+            raise ValueError('Invalid disbursement method')
         return self
 
 class Store:

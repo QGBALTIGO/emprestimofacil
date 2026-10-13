@@ -12,7 +12,7 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from backend.app import Store, create_app
+from backend.app import Store, create_app, Application
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fastapi.testclient import TestClient
 
@@ -85,6 +85,25 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/health').json(),{'status':'ok','receiving':True})
         for path in ['/backend/app.py','/var/applications.sqlite','/src/business-config.json']:
             self.assertEqual(self.client.get(path).status_code,404)
+
+    def test_pix_keys_and_encrypted_destination(self):
+        data = payload()
+        data.update(disbursement_method='pix',bank_account=None,pix={'key_type':'cpf','key':'11144477735'})
+        for key_type,key in [('cpf','11144477735'),('email','pix@example.test'),('phone','+5511912345678'),('random','123e4567-e89b-12d3-a456-426655440000')]:
+            candidate=copy.deepcopy(data);candidate['pix']={'key_type':key_type,'key':key}
+            self.assertEqual(Application.model_validate(candidate).pix.key,key)
+        for change in [{'pix':None},{'pix':{'key_type':'cpf','key':'52998224725'}},{'pix':{'key_type':'random','key':'abc'}},{'bank_account':payload()['bank_account']}]:
+            candidate=copy.deepcopy(data);candidate.update(change)
+            self.assertEqual(self.post(candidate).status_code,422)
+        result=self.post(data)
+        self.assertEqual(result.status_code,201)
+        with self.store.connect() as db:
+            app_id,nonce,cipher=db.execute('SELECT application_id,nonce,ciphertext FROM applications').fetchone()
+        stored=json.loads(AESGCM(self.key).decrypt(nonce,cipher,app_id.encode()))
+        self.assertEqual(stored['disbursement_method'],'pix')
+        self.assertEqual(stored['pix'],data['pix'])
+        self.assertIsNone(stored['bank_account'])
+        self.assertNotIn(data['pix']['key'].encode(),self.store.path.read_bytes())
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,6 +1,6 @@
 # Cadastro e API para VPS
 
-O site inclui cinco etapas: Cadastro, Endereço, Renda, Conta bancária e Revisão. No GitHub Pages e no Sites, `applicationsApiUrl` permanece `null`: o formulário funciona, mas o envio fica indisponível e nenhum dado é gravado. Nenhum CPF, senha ou dado bancário é colocado em localStorage, sessionStorage, URL ou cookies. O progresso existe apenas na página aberta; ao sair do cadastro, a senha é apagada.
+O site inclui cinco etapas: Cadastro, Endereço, Renda, Conta bancária e Revisão. No GitHub Pages e no Sites, `applicationsApiUrl` permanece `null`: o formulário funciona, mas o envio fica indisponível e nenhum dado é gravado. A consulta automática ao ViaCEP envia apenas o CEP para preencher rua, bairro, cidade e estado; uma falha não impede o preenchimento manual. Nenhum CPF, senha ou dado bancário é colocado em localStorage, sessionStorage, URL ou cookies. O progresso existe apenas na página aberta; ao sair do cadastro, a senha é apagada.
 
 ## Executar na VPS
 
@@ -36,7 +36,7 @@ Depois, configure `applicationsApiUrl` como `/api/applications` em `src/business
 
 ## Contrato de envio
 
-`POST /api/applications`, JSON, cabeçalho `Origin` igual a `PUBLIC_ORIGIN`, e `Idempotency-Key` com UUID. O corpo usa `schema_version: 1`, `applicant`, `password`, `address`, `income`, `bank_account`, `loan` e `consents`. O exemplo sintético completo está em `tests/backend_test.py`.
+`POST /api/applications`, JSON, cabeçalho `Origin` igual a `PUBLIC_ORIGIN`, e `Idempotency-Key` com UUID. O corpo usa `schema_version: 1`, `applicant`, `password`, `address`, `income`, `disbursement_method`, `bank_account`, `pix`, `loan` e `consents`. Para conta bancária, use `disbursement_method: "bank"`, `bank_account` preenchido e `pix: null`. Para Pix, use `disbursement_method: "pix"`, `bank_account: null` e `pix: {"key_type":"cpf|email|phone|random","key":"chave normalizada"}`. CPF usa 11 dígitos e deve coincidir com o titular; e-mail tem até 77 caracteres em minúsculas, celular usa E.164 (`+55...`) e a chave aleatória usa o formato UUID. A validação é de formato, sem consulta ao DICT ou execução de transferência. A API mantém compatibilidade com pedidos anteriores: sem `disbursement_method`, exige conta bancária. O exemplo sintético completo está em `tests/backend_test.py`.
 
 O servidor valida novamente CPF, idade mínima de 18 anos, e-mail, telefone, renda mínima de R$ 1.200,00, endereço, banco, agência/conta, autorizações e empréstimo de R$ 500 a R$ 3.500 em 3/6/9/12 parcelas **semanais**. A validação do CPF é matemática; a titularidade da conta, renda e elegibilidade ainda exigem análise externa.
 
