@@ -59,6 +59,56 @@
 .about-world h3{margin-bottom:18px}
 .about-world-image{display:block;width:100%;height:300px;object-fit:cover;object-position:right}
 .help-section .split{align-items:start}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.hero-grid{align-items:start}
+.quote-column{min-width:0;background:var(--green);padding:18px;border-radius:20px}
+.quote-card.reference-quote{padding:26px;border:0;border-radius:14px;box-shadow:none}
+.reference-quote .amount-heading{font-size:23px;font-weight:700;line-height:1.4;color:#273a2e;margin-bottom:14px}
+.slider-box{padding:14px;background:#f3f3f3;border-radius:7px}
+.amount-bubble-row{height:54px;position:relative}
+.reference-quote #quote-amount-display{position:absolute;left:50%;top:0;transform:translateX(-50%);display:block;min-width:140px;max-width:100%;padding:8px 14px;background:var(--green);border-radius:30px;color:#fff;font-size:25px;letter-spacing:-.6px;line-height:1.2;white-space:nowrap}
+.reference-quote #quote-amount-display::after{content:"";position:absolute;left:var(--tip-left,50%);bottom:-7px;transform:translateX(-50%);border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid var(--green)}
+.reference-quote .range-labels{color:#334339;font-size:13px;line-height:1.5;margin-bottom:2px}
+.reference-quote #quote_amount{height:42px}
+.reference-quote #quote_amount::-webkit-slider-runnable-track{height:22px;border:1px solid #b9c2bc;border-radius:20px;background:repeating-linear-gradient(to right,transparent 0,transparent calc(100% / 12 - 1px),#00000012 calc(100% / 12 - 1px),#00000012 calc(100% / 12)),linear-gradient(to right,var(--green) var(--range-progress),#f5f5f5 var(--range-progress))}
+.reference-quote #quote_amount::-webkit-slider-thumb{width:36px;height:36px;border:0;margin-top:-8px;background:var(--green);box-shadow:0 2px 4px #0003}
+.reference-quote #quote_amount::-moz-range-track{height:22px;border:1px solid #b9c2bc;background:repeating-linear-gradient(to right,#f5f5f5 0,#f5f5f5 calc(100% / 12 - 1px),#dce1dd calc(100% / 12 - 1px),#dce1dd calc(100% / 12));border-radius:20px}
+.reference-quote #quote_amount::-moz-range-progress{height:22px;background:var(--green);border-radius:20px}
+.reference-quote #quote_amount::-moz-range-thumb{width:36px;height:36px;border:0;background:var(--green);box-shadow:0 2px 4px #0003}
+.amount-step-controls{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:5px}
+.amount-step-controls>span{font-size:10px;color:var(--muted);text-align:center}
+.reference-quote .amount-adjust{width:28px;height:28px;background:#fff;border-color:#d2ddd5;flex:0 0 28px}
+.reference-quote .amount-adjust svg{width:15px;height:15px}
+.reference-quote .term-field{margin:24px 0 0}
+.reference-quote .term-field legend{font-size:23px;font-weight:700;color:#273a2e;margin-bottom:12px}
+.reference-quote .term-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.reference-quote .term-grid label:last-child{grid-column:1/-1}
+.reference-quote .term-grid label>span{background:#f3f3f3;border-color:#f3f3f3;border-radius:5px;min-height:66px;color:#273a2e}
+.reference-quote .term-grid strong{font-size:26px;text-transform:uppercase}
+.reference-quote .term-grid input:checked+span{color:#fff;background:var(--green);border-color:var(--green)}
+.reference-quote .conditions-box{padding:0;margin:24px 0 16px;background:none;border:0;border-radius:0}
+.payment-line{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;font-size:21px;line-height:1.4;font-weight:700;color:#273a2e}
+.reference-quote #quote-payment-display{font-size:22px;color:var(--green);letter-spacing:-.4px}
+.reference-quote .has-quote #quote-payment-display{font-size:28px}
+.reference-quote #quote-payment-duration{font-size:11px;line-height:1.8}
+.quote-breakdown{margin:0 0 18px;border-block:1px solid var(--line)}
+.quote-breakdown summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;font-size:12px;font-weight:700;cursor:pointer}
+.quote-breakdown summary::-webkit-details-marker{display:none}
+.quote-breakdown summary svg{width:17px;height:17px;flex-shrink:0;color:var(--green)}
+.quote-breakdown[open] summary svg{transform:rotate(180deg)}
+.quote-breakdown dl{padding-bottom:14px}
+.quote-breakdown dl>div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:6px 0;font-size:11px;line-height:1.6}
+.quote-breakdown dd{text-align:right;font-weight:600;max-width:64%;overflow-wrap:anywhere}
+.reference-quote .primary-btn{min-height:54px;font-size:18px;border-radius:6px}
+.reference-quote .credit-note{text-align:center;margin:12px 0 0}
+.reference-quote .form-footnote{margin-top:6px}
+.loan-disclosures{margin-top:22px;color:#fff;font-size:12px;line-height:1.85}
+.loan-disclosures h3{font-size:15px;margin-bottom:8px;color:#fff}
+.loan-disclosures ul{padding-left:19px}
+.loan-disclosures li+li{margin-top:5px}
+.loan-disclosures p{margin-top:10px}
+@media(max-width:699px){.quote-column{padding:14px;border-radius:16px}.quote-card.reference-quote{padding:22px}.reference-quote .amount-heading,.reference-quote .term-field legend{font-size:22px}.reference-quote #quote-amount-display{font-size:23px;min-width:140px}.reference-quote .term-grid label>span{min-height:60px}.reference-quote .term-grid strong{font-size:24px}.payment-line{font-size:20px}.loan-disclosures{font-size:11px}}
+@media(max-width:359px){.quote-column{padding:10px}.quote-card.reference-quote{padding:18px}.slider-box{padding:10px}.reference-quote .range-labels{font-size:12px}.reference-quote #quote-amount-display{font-size:21px;min-width:134px}.reference-quote .amount-heading,.reference-quote .term-field legend{font-size:20px}.reference-quote .term-grid{gap:8px}.reference-quote .term-grid strong{font-size:22px}.reference-quote .primary-btn{font-size:16px}.payment-line{font-size:18px}}
 .help-intro{position:sticky;top:110px}
 .help-topics{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin-top:24px}
 .help-topics a,.faq-link{color:var(--green);font-weight:700;text-decoration:underline;text-underline-offset:4px}
@@ -87,18 +137,20 @@
 <main>
 <section class="hero" id="inicio" aria-labelledby="hero-title"><div class="container hero-grid">
 <div class="hero-copy"><span class="eyebrow">Empréstimo pessoal online</span><h1 id="hero-title">Seus planos,<br> <em>mais perto.</em></h1><p class="hero-lead">Escolha o valor e o prazo. Confira as condições do seu empréstimo antes de contratar.</p><div class="hero-photo-wrap"><img class="hero-photo" src="assets/reference/dis-goog-dgen-fade.jpg" alt="Mulher sorrindo, usando óculos e uma blusa amarela" width="1400" height="825" fetchpriority="high"><div class="photo-caption"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 12 3 3 5-6"/><circle cx="12" cy="12" r="9"/></svg><span>Você escolhe. Você confere. Você decide.</span></div></div></div>
-<div class="quote-card"><div class="card-heading"><span class="eyebrow">Comece por aqui</span><h2>Escolha seu empréstimo</h2><p>Um passo de cada vez, sem complicação.</p></div>
-<form id="home-page--get-quote" action="#" aria-label="Escolha do empréstimo">
-<div class="amount-heading"><label for="quote_amount">De quanto você precisa?</label><span>Valor solicitado</span></div>
-<div class="amount-controls"><button type="button" class="amount-adjust" data-amount-adjust="-1" aria-label="Diminuir o valor em 250 reais"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button><output id="quote-amount-display" for="quote_amount" aria-live="polite" aria-atomic="true">R$ 2.000,00</output><button type="button" class="amount-adjust" data-amount-adjust="1" aria-label="Aumentar o valor em 250 reais"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button></div>
-<input id="quote_amount" type="range" min="500" max="3500" step="250" value="2000" name="amount" aria-describedby="range-labels" aria-valuetext="R$ 2.000,00"><div id="range-labels" class="range-labels"><span>R$ 500</span><span>R$ 3.500</span></div>
-<fieldset class="term-field"><legend>Em quantas parcelas?</legend><div class="term-grid">
+<div class="quote-column"><div class="quote-card reference-quote"><h2 class="sr-only" id="loan-form-title">Escolha seu empréstimo</h2>
+<form id="home-page--get-quote" action="#" aria-labelledby="loan-form-title">
+<div class="amount-heading"><label for="quote_amount">Valor solicitado</label></div>
+<div class="slider-box"><div class="amount-bubble-row"><output id="quote-amount-display" for="quote_amount" aria-live="polite" aria-atomic="true">R$ 2.000,00</output></div><div id="range-labels" class="range-labels"><span>R$ 500</span><span>R$ 3.500</span></div>
+<input id="quote_amount" type="range" min="500" max="3500" step="250" value="2000" name="amount" aria-describedby="range-labels" aria-valuetext="R$ 2.000,00">
+<div class="amount-step-controls"><button type="button" class="amount-adjust" data-amount-adjust="-1" aria-label="Diminuir o valor em 250 reais"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button><span>Arraste a barra para escolher</span><button type="button" class="amount-adjust" data-amount-adjust="1" aria-label="Aumentar o valor em 250 reais"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button></div></div>
+<fieldset class="term-field"><legend>Parcelado em</legend><div class="term-grid">
 <label><input type="radio" name="weeks" value="3" id="quote_installment_3" aria-label="3 parcelas semanais"><span><strong>3x</strong><small>semanas</small></span></label><label><input type="radio" name="weeks" value="6" id="quote_installment_6" aria-label="6 parcelas semanais"><span><strong>6x</strong><small>semanas</small></span></label><label><input type="radio" name="weeks" value="9" id="quote_installment_9" aria-label="9 parcelas semanais"><span><strong>9x</strong><small>semanas</small></span></label><label><input type="radio" name="weeks" value="12" id="quote_installment_12" aria-label="12 parcelas semanais" checked><span><strong>12x</strong><small>semanas</small></span></label>
 </div></fieldset>
-<div class="conditions-box" id="quote-result" aria-live="polite" aria-atomic="true"><div class="conditions-label"><span>Condições do empréstimo</span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div><output id="quote-payment-display">Consulte as condições</output><p id="quote-payment-duration">Taxa, parcela e CET informados antes da contratação.</p><div class="total-row" id="quote-total-row" hidden><span>Total a pagar</span><output id="quote-total-display"></output></div></div>
-<p class="credit-note" id="quote-status">A aprovação e as condições dependem da análise de crédito.</p><button id="home-page--get-quote-submit-btn" class="primary-btn" type="submit">Continuar solicitação <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button><p class="form-footnote">Nenhum pagamento antecipado para liberar crédito.</p>
+<div class="conditions-box" id="quote-result" aria-live="polite" aria-atomic="true"><div class="payment-line"><span>Sua parcela semanal:</span><output id="quote-payment-display">A confirmar</output></div><p id="quote-payment-duration">Confira a parcela e os custos antes de contratar.</p><div class="total-row" id="quote-total-row" hidden><span>Total a pagar</span><output id="quote-total-display"></output></div></div>
+<details class="quote-breakdown"><summary>Taxas e custos do empréstimo<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><dl><div><dt>Juros ao mês</dt><dd id="quote-monthly-rate-display">15,80% a 17,90%</dd></div><div><dt>Juros ao ano</dt><dd id="quote-annual-rate-display">481,44% a 621,38%</dd></div><div><dt>IOF</dt><dd id="quote-iof-display">Informado na proposta</dd></div><div><dt>Tarifas</dt><dd id="quote-fees-display">Informadas na proposta</dd></div><div><dt>CET ao ano</dt><dd id="quote-cet-display">Informado na proposta</dd></div></dl></details>
+<button id="home-page--get-quote-submit-btn" class="primary-btn" type="submit">SOLICITE JÁ! <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button><p class="credit-note" id="quote-status">A aprovação e as condições dependem da análise de crédito.</p><p class="form-footnote">Nenhum pagamento antecipado para liberar crédito.</p>
 </form><noscript><p class="credit-note">Ative o JavaScript para alterar o valor e o prazo.</p></noscript></div>
-</div></section>
+<div class="loan-disclosures"><h3>Condições do empréstimo</h3><ul><li>Pagamento em 3, 6, 9 ou 12 parcelas semanais.</li><li>Juros de 15,80% a 17,90% ao mês, equivalentes a 481,44% a 621,38% ao ano.</li><li>Parcela, total, IOF, tarifas e CET apresentados na proposta, antes da contratação.</li></ul><p>O valor liberado e as condições finais dependem da análise de crédito.</p></div></div></div></section>
 <section class="benefits" aria-label="Facilidades"><div class="container benefits-grid"><div><img src="assets/reference/money-icon.svg" alt="" width="40" height="40"><h3>Valor que você escolhe</h3><p>Selecione quanto precisa para o seu próximo passo.</p></div><div><img src="assets/reference/book-icon.svg" alt="" width="40" height="40"><h3>Condições claras</h3><p>Confira parcelas, taxas e custo total antes de contratar.</p></div><div><img src="assets/reference/clock-icon.svg" alt="" width="40" height="40"><h3>Um processo simples</h3><p>Escolha seu prazo e siga para o atendimento.</p></div></div></section>
 <section class="section how-it-works" id="como-funciona" aria-labelledby="steps-title"><div class="container"><span class="eyebrow">Como funciona</span><h2 id="steps-title">Seu empréstimo em cinco passos.</h2>
 <ol class="steps">
@@ -143,14 +195,16 @@
 </div></div></section>
 </main>
 <footer class="site-footer"><div class="container"><div class="footer-grid"><div><a class="brand" href="#inicio" aria-label="Empréstimo Fácil — início"><img class="brand-logo" src="assets/logo-transparent.png" alt="Empréstimo Fácil" width="2163" height="727" loading="lazy"></a><p>Seus planos, mais perto.</p></div><nav aria-label="Navegação do rodapé"><strong>Empréstimo Fácil</strong><a href="#como-funciona">Como funciona</a><a href="#quem-somos">Quem somos</a><a href="#ajuda">Ajuda</a></nav><div class="footer-info"><strong>Informações</strong><button type="button" data-info="conditions">Condições de contratação</button><button type="button" data-info="privacy">Privacidade</button><a href="#home-page--get-quote">Solicitar empréstimo</a></div></div><div class="footer-bottom"><p>© <span id="current-year">2026</span> Empréstimo Fácil.</p><p>Crédito sujeito à análise e às condições da instituição responsável.</p></div></div></footer>
-<dialog id="request-dialog" aria-labelledby="request-title"><div class="dialog-heading"><span class="eyebrow">Empréstimo Fácil</span><button type="button" class="icon-btn" data-close aria-label="Fechar janela"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div><h2 id="request-title">Confira sua solicitação</h2><p class="dialog-intro">Revise o valor e o prazo antes de continuar.</p><dl><div><dt>Valor solicitado</dt><dd id="summary-amount"></dd></div><div><dt>Prazo escolhido</dt><dd id="summary-weeks"></dd></div><div><dt>Parcela mensal</dt><dd id="summary-payment">A confirmar</dd></div><div id="summary-total-row" hidden><dt>Total a pagar</dt><dd id="summary-total"></dd></div><div id="summary-rate-row" hidden><dt>Taxa ao mês</dt><dd id="summary-rate"></dd></div><div id="summary-cet-row" hidden><dt>CET ao ano</dt><dd id="summary-cet"></dd></div></dl><p id="application-status" class="dialog-note" role="status"></p><button type="button" id="application-action" class="primary-btn" disabled>Continuar no atendimento</button><button type="button" class="dialog-return" data-close>Alterar valor ou prazo</button></dialog>
+<dialog id="request-dialog" aria-labelledby="request-title"><div class="dialog-heading"><span class="eyebrow">Empréstimo Fácil</span><button type="button" class="icon-btn" data-close aria-label="Fechar janela"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div><h2 id="request-title">Confira sua solicitação</h2><p class="dialog-intro">Revise o valor e o prazo antes de continuar.</p><dl><div><dt>Valor solicitado</dt><dd id="summary-amount"></dd></div><div><dt>Prazo escolhido</dt><dd id="summary-weeks"></dd></div><div><dt>Parcela semanal</dt><dd id="summary-payment">A confirmar</dd></div><div id="summary-total-row" hidden><dt>Total a pagar</dt><dd id="summary-total"></dd></div><div id="summary-rate-row" hidden><dt>Taxa ao mês</dt><dd id="summary-rate"></dd></div><div id="summary-cet-row" hidden><dt>CET ao ano</dt><dd id="summary-cet"></dd></div></dl><p id="application-status" class="dialog-note" role="status"></p><button type="button" id="application-action" class="primary-btn" disabled>Continuar no atendimento</button><button type="button" class="dialog-return" data-close>Alterar valor ou prazo</button></dialog>
 <dialog id="info-dialog" aria-labelledby="info-title"><div class="dialog-heading"><span class="eyebrow">Empréstimo Fácil</span><button type="button" class="icon-btn" data-close aria-label="Fechar janela"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div><h2 id="info-title"></h2><p id="info-message" class="dialog-intro"></p><button type="button" class="dialog-return" data-close>Voltar</button></dialog>
-<script id="business-config" type="application/json">{"minAmount": 500, "maxAmount": 3500, "amountStep": 250, "initialAmount": 2000, "terms": [3, 6, 9, 12], "quotesUrl": null, "quotes": [], "contact": {"whatsapp": null, "applicationUrl": null}, "initialWeeks": 12, "installmentFrequency": "weekly"}</script><script>(function () {
+<script id="business-config" type="application/json">{"minAmount": 500, "maxAmount": 3500, "amountStep": 250, "initialAmount": 2000, "terms": [3, 6, 9, 12], "quotesUrl": null, "quotes": [], "contact": {"whatsapp": null, "applicationUrl": null}, "initialWeeks": 12, "installmentFrequency": "weekly", "monthlyRateMin": 0.158, "monthlyRateMax": 0.179}</script><script>(function () {
   'use strict';
   const config = JSON.parse(document.getElementById('business-config').textContent);
   const d = document, form = d.getElementById('home-page--get-quote'), range = d.getElementById('quote_amount');
   const money = new Intl.NumberFormat('pt-BR', {style:'currency',currency:'BRL'});
   const percent = value => new Intl.NumberFormat('pt-BR',{style:'percent',minimumFractionDigits:2,maximumFractionDigits:2}).format(value);
+  const annualInterest = rate => Math.expm1(12*Math.log1p(rate));
+  const rateRange = (annual=false) => [config.monthlyRateMin,config.monthlyRateMax].map(rate=>percent(annual?annualInterest(rate):rate)).join(' a ');
   const dialogs = [...d.querySelectorAll('dialog')];
   let amount=config.initialAmount,weeks=config.initialWeeks,quotes=[],quoteStatus='unavailable',requestTrigger;
   function normalizeQuotes(data) {
@@ -163,9 +217,12 @@
       const required=['amount_requested','installments_requested','installment_amount','total_amount','monthly_rate','annual_cet','installment_frequency'];
       if(row.installment_frequency!==config.installmentFrequency)throw new TypeError('Quote installment frequency does not match');
       if(required.some(k=>!['number','string'].includes(typeof row[k])||String(row[k]).trim()==='')||![a,n,p,total,rate,cet].every(Number.isFinite)||a<config.minAmount||a>config.maxAmount||(a-config.minAmount)%config.amountStep!==0||!config.terms.includes(n)||p<=0||total<a||Math.abs(Math.round(total*100)-Math.round(p*100)*n)>1||rate<0||rate>1||cet<0)throw new TypeError('Incomplete or inconsistent quote');
+      const charges={};
+      for(const key of ['iof_amount','fees_amount']){if(row[key]!=null){if(!['number','string'].includes(typeof row[key])||String(row[key]).trim()===''||!Number.isFinite(Number(row[key]))||Number(row[key])<0)throw new TypeError('Invalid quote charges');charges[key]=Number(row[key]);}}
+      if((charges.iof_amount||0)+(charges.fees_amount||0)>total-a+.01)throw new TypeError('Quote charges exceed total cost');
       const key=a+':'+n;if(keys.has(key))throw new TypeError('Duplicate quote');keys.add(key);
       if(row.expires_at&&!Number.isFinite(Date.parse(row.expires_at)))throw new TypeError('Invalid quote expiry');
-      return Object.freeze({amount_requested:a,installments_requested:n,installment_frequency:row.installment_frequency,installment_amount:p,total_amount:total,monthly_rate:rate,annual_cet:cet,expires_at:row.expires_at||null});
+      return Object.freeze({amount_requested:a,installments_requested:n,installment_frequency:row.installment_frequency,installment_amount:p,total_amount:total,monthly_rate:rate,annual_cet:cet,expires_at:row.expires_at||null,...charges});
     });
   }
   function getQuote(value,term){return quotes.find(q=>q.amount_requested===Number(value)&&q.installments_requested===Number(term)&&(!q.expires_at||Date.parse(q.expires_at)>Date.now()))||null;}
@@ -177,6 +234,13 @@
     return 'https://wa.me/'+phone+'?text='+encodeURIComponent('Olá! Quero solicitar um empréstimo de '+money.format(value)+' em '+term+' parcelas semanais. Gostaria de conferir as condições.');
   }
   const setText=(id,text)=>{d.getElementById(id).textContent=text;};
+  function positionAmountBubble(){
+    const bubble=d.getElementById('quote-amount-display'),width=range.clientWidth,bubbleWidth=bubble.offsetWidth;
+    if(!width||!bubbleWidth)return;
+    const progress=(amount-config.minAmount)/(config.maxAmount-config.minAmount),target=18+(width-36)*progress;
+    const center=Math.min(width-bubbleWidth/2,Math.max(bubbleWidth/2,target));
+    bubble.style.left=center+'px';bubble.style.setProperty('--tip-left',(target-center+bubbleWidth/2)+'px');
+  }
   function updateSummary(){
     const q=getQuote(amount,weeks);setText('summary-amount',money.format(amount));setText('summary-weeks',weeks+' parcelas semanais');setText('summary-payment',q?money.format(q.installment_amount):'A confirmar');
     for(const [id,key,format] of [['total','total_amount',money.format],['rate','monthly_rate',percent],['cet','annual_cet',percent]]){d.getElementById('summary-'+id+'-row').hidden=!q;setText('summary-'+id,q?format(q[key]):'');}
@@ -185,11 +249,17 @@
   }
   function render(){
     range.value=String(amount);range.style.setProperty('--range-progress',(amount-config.minAmount)/(config.maxAmount-config.minAmount)*100+'%');range.setAttribute('aria-valuetext',money.format(amount));setText('quote-amount-display',money.format(amount));
+    positionAmountBubble();
     for(const radio of form.querySelectorAll('[name="weeks"]'))radio.checked=Number(radio.value)===weeks;
     for(const button of form.querySelectorAll('[data-amount-adjust]'))button.disabled=Number(button.dataset.amountAdjust)<0?amount===config.minAmount:amount===config.maxAmount;
     const q=getQuote(amount,weeks);d.getElementById('quote-result').classList.toggle('has-quote',Boolean(q));d.getElementById('quote-total-row').hidden=!q;
-    setText('quote-payment-display',q?money.format(q.installment_amount):(quoteStatus==='loading'?'Consultando condições…':'Consulte as condições'));
-    setText('quote-payment-duration',q?weeks+' parcelas semanais • Taxa de '+percent(q.monthly_rate)+' a.m.':'Taxa, parcela e CET informados antes da contratação.');
+    setText('quote-payment-display',q?money.format(q.installment_amount):(quoteStatus==='loading'?'Consultando…':'A confirmar'));
+    setText('quote-payment-duration',q?weeks+' parcelas semanais • Taxa de '+percent(q.monthly_rate)+' a.m.':'Parcela e custos apresentados na proposta, antes da contratação.');
+    setText('quote-monthly-rate-display',q?percent(q.monthly_rate):rateRange());
+    setText('quote-annual-rate-display',q?percent(annualInterest(q.monthly_rate)):rateRange(true));
+    setText('quote-iof-display',q?.iof_amount!=null?money.format(q.iof_amount):'Informado na proposta');
+    setText('quote-fees-display',q?.fees_amount!=null?money.format(q.fees_amount):'Informadas na proposta');
+    setText('quote-cet-display',q?percent(q.annual_cet):'Informado na proposta');
     setText('quote-total-display',q?money.format(q.total_amount):'');setText('quote-status',q?'CET: '+percent(q.annual_cet)+' a.a. Crédito sujeito à análise.':quoteStatus==='error'?'Não foi possível consultar as condições agora. Tente novamente mais tarde.':'A aprovação e as condições dependem da análise de crédito.');
     if(d.getElementById('request-dialog').open)updateSummary();
   }
@@ -217,6 +287,9 @@
   toggle.addEventListener('click',()=>{const open=!nav.classList.contains('active');nav.classList.toggle('active',open);toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'Fechar menu':'Abrir menu');navContent.inert=!open;});
   for(const link of navContent.querySelectorAll('a'))link.addEventListener('click',()=>closeMenu(false));d.addEventListener('keydown',e=>{if(e.key==='Escape'&&nav.classList.contains('active'))closeMenu(true);});d.addEventListener('click',e=>{if(nav.classList.contains('active')&&!nav.contains(e.target))closeMenu(false);});desktop.addEventListener('change',()=>closeMenu(false));closeMenu(false);
   setText('current-year',String(new Date().getFullYear()));
+  window.addEventListener('resize',positionAmountBubble);
+  if('ResizeObserver' in window)new window.ResizeObserver(positionAmountBubble).observe(range);
+  d.fonts?.ready?.then(positionAmountBubble);
   window.EmprestimoFacil=Object.freeze({setAmount,selectWeeks,loadQuotes,getQuote,buildApplicationUrl,getState:()=>({amount,weeks,installmentFrequency:config.installmentFrequency,quote:getQuote(amount,weeks),quoteStatus,applicationReady:Boolean(buildApplicationUrl(config.contact,amount,weeks))})});
   try{loadQuotes(config.quotes);}catch{quoteStatus='error';render();}
   async function fetchQuotes(){

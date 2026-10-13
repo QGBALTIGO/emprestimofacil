@@ -4,6 +4,8 @@
   const d = document, form = d.getElementById('home-page--get-quote'), range = d.getElementById('quote_amount');
   const money = new Intl.NumberFormat('pt-BR', {style:'currency',currency:'BRL'});
   const percent = value => new Intl.NumberFormat('pt-BR',{style:'percent',minimumFractionDigits:2,maximumFractionDigits:2}).format(value);
+  const annualInterest = rate => Math.expm1(12*Math.log1p(rate));
+  const rateRange = (annual=false) => [config.monthlyRateMin,config.monthlyRateMax].map(rate=>percent(annual?annualInterest(rate):rate)).join(' a ');
   const dialogs = [...d.querySelectorAll('dialog')];
   let amount=config.initialAmount,weeks=config.initialWeeks,quotes=[],quoteStatus='unavailable',requestTrigger;
   function normalizeQuotes(data) {
@@ -16,9 +18,12 @@
       const required=['amount_requested','installments_requested','installment_amount','total_amount','monthly_rate','annual_cet','installment_frequency'];
       if(row.installment_frequency!==config.installmentFrequency)throw new TypeError('Quote installment frequency does not match');
       if(required.some(k=>!['number','string'].includes(typeof row[k])||String(row[k]).trim()==='')||![a,n,p,total,rate,cet].every(Number.isFinite)||a<config.minAmount||a>config.maxAmount||(a-config.minAmount)%config.amountStep!==0||!config.terms.includes(n)||p<=0||total<a||Math.abs(Math.round(total*100)-Math.round(p*100)*n)>1||rate<0||rate>1||cet<0)throw new TypeError('Incomplete or inconsistent quote');
+      const charges={};
+      for(const key of ['iof_amount','fees_amount']){if(row[key]!=null){if(!['number','string'].includes(typeof row[key])||String(row[key]).trim()===''||!Number.isFinite(Number(row[key]))||Number(row[key])<0)throw new TypeError('Invalid quote charges');charges[key]=Number(row[key]);}}
+      if((charges.iof_amount||0)+(charges.fees_amount||0)>total-a+.01)throw new TypeError('Quote charges exceed total cost');
       const key=a+':'+n;if(keys.has(key))throw new TypeError('Duplicate quote');keys.add(key);
       if(row.expires_at&&!Number.isFinite(Date.parse(row.expires_at)))throw new TypeError('Invalid quote expiry');
-      return Object.freeze({amount_requested:a,installments_requested:n,installment_frequency:row.installment_frequency,installment_amount:p,total_amount:total,monthly_rate:rate,annual_cet:cet,expires_at:row.expires_at||null});
+      return Object.freeze({amount_requested:a,installments_requested:n,installment_frequency:row.installment_frequency,installment_amount:p,total_amount:total,monthly_rate:rate,annual_cet:cet,expires_at:row.expires_at||null,...charges});
     });
   }
   function getQuote(value,term){return quotes.find(q=>q.amount_requested===Number(value)&&q.installments_requested===Number(term)&&(!q.expires_at||Date.parse(q.expires_at)>Date.now()))||null;}
@@ -30,6 +35,13 @@
     return 'https://wa.me/'+phone+'?text='+encodeURIComponent('Olá! Quero solicitar um empréstimo de '+money.format(value)+' em '+term+' parcelas semanais. Gostaria de conferir as condições.');
   }
   const setText=(id,text)=>{d.getElementById(id).textContent=text;};
+  function positionAmountBubble(){
+    const bubble=d.getElementById('quote-amount-display'),width=range.clientWidth,bubbleWidth=bubble.offsetWidth;
+    if(!width||!bubbleWidth)return;
+    const progress=(amount-config.minAmount)/(config.maxAmount-config.minAmount),target=18+(width-36)*progress;
+    const center=Math.min(width-bubbleWidth/2,Math.max(bubbleWidth/2,target));
+    bubble.style.left=center+'px';bubble.style.setProperty('--tip-left',(target-center+bubbleWidth/2)+'px');
+  }
   function updateSummary(){
     const q=getQuote(amount,weeks);setText('summary-amount',money.format(amount));setText('summary-weeks',weeks+' parcelas semanais');setText('summary-payment',q?money.format(q.installment_amount):'A confirmar');
     for(const [id,key,format] of [['total','total_amount',money.format],['rate','monthly_rate',percent],['cet','annual_cet',percent]]){d.getElementById('summary-'+id+'-row').hidden=!q;setText('summary-'+id,q?format(q[key]):'');}
@@ -38,11 +50,17 @@
   }
   function render(){
     range.value=String(amount);range.style.setProperty('--range-progress',(amount-config.minAmount)/(config.maxAmount-config.minAmount)*100+'%');range.setAttribute('aria-valuetext',money.format(amount));setText('quote-amount-display',money.format(amount));
+    positionAmountBubble();
     for(const radio of form.querySelectorAll('[name="weeks"]'))radio.checked=Number(radio.value)===weeks;
     for(const button of form.querySelectorAll('[data-amount-adjust]'))button.disabled=Number(button.dataset.amountAdjust)<0?amount===config.minAmount:amount===config.maxAmount;
     const q=getQuote(amount,weeks);d.getElementById('quote-result').classList.toggle('has-quote',Boolean(q));d.getElementById('quote-total-row').hidden=!q;
-    setText('quote-payment-display',q?money.format(q.installment_amount):(quoteStatus==='loading'?'Consultando condições…':'Consulte as condições'));
-    setText('quote-payment-duration',q?weeks+' parcelas semanais • Taxa de '+percent(q.monthly_rate)+' a.m.':'Taxa, parcela e CET informados antes da contratação.');
+    setText('quote-payment-display',q?money.format(q.installment_amount):(quoteStatus==='loading'?'Consultando…':'A confirmar'));
+    setText('quote-payment-duration',q?weeks+' parcelas semanais • Taxa de '+percent(q.monthly_rate)+' a.m.':'Parcela e custos apresentados na proposta, antes da contratação.');
+    setText('quote-monthly-rate-display',q?percent(q.monthly_rate):rateRange());
+    setText('quote-annual-rate-display',q?percent(annualInterest(q.monthly_rate)):rateRange(true));
+    setText('quote-iof-display',q?.iof_amount!=null?money.format(q.iof_amount):'Informado na proposta');
+    setText('quote-fees-display',q?.fees_amount!=null?money.format(q.fees_amount):'Informadas na proposta');
+    setText('quote-cet-display',q?percent(q.annual_cet):'Informado na proposta');
     setText('quote-total-display',q?money.format(q.total_amount):'');setText('quote-status',q?'CET: '+percent(q.annual_cet)+' a.a. Crédito sujeito à análise.':quoteStatus==='error'?'Não foi possível consultar as condições agora. Tente novamente mais tarde.':'A aprovação e as condições dependem da análise de crédito.');
     if(d.getElementById('request-dialog').open)updateSummary();
   }
@@ -70,6 +88,9 @@
   toggle.addEventListener('click',()=>{const open=!nav.classList.contains('active');nav.classList.toggle('active',open);toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'Fechar menu':'Abrir menu');navContent.inert=!open;});
   for(const link of navContent.querySelectorAll('a'))link.addEventListener('click',()=>closeMenu(false));d.addEventListener('keydown',e=>{if(e.key==='Escape'&&nav.classList.contains('active'))closeMenu(true);});d.addEventListener('click',e=>{if(nav.classList.contains('active')&&!nav.contains(e.target))closeMenu(false);});desktop.addEventListener('change',()=>closeMenu(false));closeMenu(false);
   setText('current-year',String(new Date().getFullYear()));
+  window.addEventListener('resize',positionAmountBubble);
+  if('ResizeObserver' in window)new window.ResizeObserver(positionAmountBubble).observe(range);
+  d.fonts?.ready?.then(positionAmountBubble);
   window.EmprestimoFacil=Object.freeze({setAmount,selectWeeks,loadQuotes,getQuote,buildApplicationUrl,getState:()=>({amount,weeks,installmentFrequency:config.installmentFrequency,quote:getQuote(amount,weeks),quoteStatus,applicationReady:Boolean(buildApplicationUrl(config.contact,amount,weeks))})});
   try{loadQuotes(config.quotes);}catch{quoteStatus='error';render();}
   async function fetchQuotes(){
