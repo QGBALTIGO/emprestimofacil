@@ -1,0 +1,131 @@
+<a class="skip-link" href="#home-page--get-quote">Ir para o simulador</a>
+<header class="site-header" id="header">
+  <div class="site-header--wrapper">
+    <a class="brand-logo-link" href="#home-page--slider" aria-label="Empréstimo Fácil — início">__BRAND_LOGO__</a>
+    <nav class="site-header--nav" aria-label="Navegação principal">
+      <div class="mobile-nav" id="site-header--mobile-nav">
+        <button type="button" class="mobile-nav--toggle" aria-label="Abrir menu" aria-expanded="false" aria-controls="main-navigation"><span class="mobile-nav--icon-bar"></span><span class="mobile-nav--icon-bar"></span><span class="mobile-nav--icon-bar"></span></button>
+        <div class="mobile-nav--nav" id="main-navigation">
+          <ul class="mobile-nav--nav-list">
+            <li><a class="mobile-nav--link" href="#como-funciona">Como funciona</a></li>
+            <li><a class="mobile-nav--link" href="#quem-somos">Quem somos</a></li>
+            <li><a class="mobile-nav--link" href="#ajuda">Dúvidas</a></li>
+            <li><a class="nav-simulate" href="#home-page--get-quote">Simular agora <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a></li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+  </div>
+</header>
+<main id="app" class="app">
+  <div class="beware-scams-banner"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v6c0 4-4.3 7.3-8 9-3.7-1.7-8-5-8-9V6l8-3Z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg><p><strong>Cuidado com golpes!</strong> Nunca pague taxas antecipadas para liberar um empréstimo.</p></div>
+  <section id="home-page" aria-labelledby="hero-title">
+    <section id="home-page--slider" class="hero">
+      <div class="row--wrapper">
+        <div class="row--hero-content">
+          <h1 id="hero-title">Empréstimo pessoal<br>rápido e seguro?</h1>
+          <p class="hero-subtitle">A Empréstimo Fácil te ajuda a planejar.</p>
+          <div class="quote-slider--container">
+            <form id="home-page--get-quote" action="#" aria-label="Simulador de empréstimo">
+              <div class="quote-slider--step amount-step">
+                <div class="amount-heading"><label for="quote_amount" class="quote-slider--step-directions">De quanto você precisa?</label><span class="simulation-badge">Simulação</span></div>
+                <div class="amount-controls">
+                  <button type="button" class="amount-adjust" data-amount-adjust="-1" aria-label="Diminuir o valor em 250 reais" aria-controls="quote_amount"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+                  <output class="quote-slider--amount-output" id="quote-amount-display" for="quote_amount" aria-live="polite" aria-atomic="true">R$ 2.000,00</output>
+                  <button type="button" class="amount-adjust" data-amount-adjust="1" aria-label="Aumentar o valor em 250 reais" aria-controls="quote_amount"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button>
+                </div>
+                <div class="quote-slider--slider-container">
+                  <input class="quote-slider--slider" type="range" name="quote[amount]" id="quote_amount" min="500" max="3500" step="250" value="2000" aria-describedby="amount-range-hint" aria-valuetext="R$ 2.000,00">
+                  <div class="amount-range-labels" id="amount-range-hint"><span>R$ 500</span><span>R$ 3.500</span></div>
+                </div>
+              </div>
+              <fieldset class="quote-slider--step installment-step">
+                <legend class="quote-slider--step-directions">Em quantas parcelas?</legend>
+                <div class="quote-slider--installments-container">
+                  <label class="quote-slider--installment" data-value="3"><input type="radio" name="quote[installment]" id="quote_installment_3" value="3" aria-label="3 parcelas mensais"><span><strong>3x</strong><small>meses</small></span></label>
+                  <label class="quote-slider--installment" data-value="6"><input type="radio" name="quote[installment]" id="quote_installment_6" value="6" aria-label="6 parcelas mensais"><span><strong>6x</strong><small>meses</small></span></label>
+                  <label class="quote-slider--installment" data-value="9"><input type="radio" name="quote[installment]" id="quote_installment_9" value="9" aria-label="9 parcelas mensais"><span><strong>9x</strong><small>meses</small></span></label>
+                  <label class="quote-slider--installment active" data-value="12"><input type="radio" name="quote[installment]" id="quote_installment_12" value="12" aria-label="12 parcelas mensais" checked><span><strong>12x</strong><small>meses</small></span></label>
+                </div>
+              </fieldset>
+              <section class="quote-slider--result" aria-labelledby="payment-label">
+                <div class="payment-heading"><span id="payment-label">Sua parcela mensal estimada</span><button type="button" class="calculation-help" data-dialog-action="calculation" aria-label="Entender o cálculo da simulação"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7v.1"/></svg></button></div>
+                <div class="payment-main"><output id="quote-payment-display" class="quote-slider--installment-amount" aria-live="polite" aria-atomic="true">R$ 367,15</output><span class="payment-duration" id="quote-payment-duration">por mês, em 12x</span></div>
+                <div class="quote-total-row"><span>Total estimado</span><output id="quote-total-display">R$ 4.405,80</output></div>
+                <input type="hidden" name="quote[installment_amount]" id="quote_installment_amount" value="367.15">
+              </section>
+              <p class="quote-data-status" id="simulation-disclaimer">Cálculo ilustrativo. Não inclui IOF e tarifas.</p>
+              <button type="submit" class="quote-slider--submit-btn" id="home-page--get-quote-submit-btn">Ver resumo da simulação <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
+              <p class="quote-slider--footnote"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Sem informar CPF ou dados bancários.</p>
+            </form>
+            <noscript><p class="no-script">Ative o JavaScript do navegador para atualizar os valores da simulação.</p></noscript>
+          </div>
+          <p class="hero-note">Compare os prazos com tranquilidade. A simulação é ilustrativa e não representa aprovação de crédito.</p>
+        </div>
+      </div>
+    </section>
+  </section>
+  <section class="home-howitworks" aria-labelledby="benefits-title">
+    <div class="section-wrapper">
+      <h2 id="benefits-title">Mais clareza para o seu próximo passo.</h2>
+      <div class="benefits-grid">
+        <div><img src="/money-icon.svg" alt="" width="48" height="48" loading="lazy"><h3>Valor na medida certa</h3><p>Escolha quanto precisa e veja a parcela na mesma hora.</p></div>
+        <div><img src="/light-icon.svg" alt="" width="48" height="48" loading="lazy"><h3>Simples de comparar</h3><p>Alterne entre os prazos e encontre uma opção para o seu planejamento.</p></div>
+        <div><img src="/book-icon.svg" alt="" width="48" height="48" loading="lazy"><h3>Sem surpresas no cálculo</h3><p>Confira a parcela, os juros estimados e o total antes de decidir.</p></div>
+        <div><img src="/clock-icon.svg" alt="" width="48" height="48" loading="lazy"><h3>No seu tempo</h3><p>Simule quantas vezes quiser, sem preencher um cadastro.</p></div>
+      </div>
+    </div>
+  </section>
+  <section class="how-section" id="como-funciona" aria-labelledby="how-title">
+    <div class="section-wrapper">
+      <div class="section-heading"><span class="eyebrow">Como funciona</span><h2 id="how-title">Planeje em três passos.</h2><p>Você ajusta as escolhas. Os valores acompanham.</p></div>
+      <ol class="steps-grid">
+        <li><span class="step-number">01</span><h3>Escolha o valor</h3><p>Arraste a barra ou use os botões para simular de R$ 500 a R$ 3.500.</p></li>
+        <li><span class="step-number">02</span><h3>Compare os prazos</h3><p>Selecione 3, 6, 9 ou 12 parcelas e veja o resultado imediatamente.</p></li>
+        <li><span class="step-number">03</span><h3>Confira o resumo</h3><p>Veja o valor solicitado, a parcela e o total estimado em um só lugar.</p></li>
+      </ol>
+      <a class="text-link" href="#home-page--get-quote">Fazer minha simulação <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a>
+    </div>
+  </section>
+  <section class="about-section" id="quem-somos" aria-labelledby="about-title">
+    <div class="section-wrapper about-grid">
+      <div><span class="eyebrow">Empréstimo Fácil</span><h2 id="about-title">Seus planos,<br>mais perto.</h2></div>
+      <div><p>A Empréstimo Fácil foi pensada para tornar a simulação de crédito pessoal mais simples de entender. Aqui, você compara valores e prazos com informações organizadas e sem complicação.</p><p>Este simulador é ilustrativo. Uma contratação depende da análise de crédito e das condições da instituição responsável, incluindo impostos, tarifas e custo efetivo total.</p><a class="text-link" href="#ajuda">Tirar minhas dúvidas <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a></div>
+    </div>
+  </section>
+  <section class="faq-section" id="ajuda" aria-labelledby="faq-title">
+    <div class="section-wrapper faq-grid">
+      <div class="section-heading"><span class="eyebrow">Dúvidas frequentes</span><h2 id="faq-title">Tudo mais<br>claro para você.</h2><p>Entenda os valores e o funcionamento do simulador.</p></div>
+      <div class="faq-list">
+        <details><summary>Como altero o valor e o prazo?<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><p>Arraste a barra para escolher o valor ou use os botões de mais e menos. Depois, selecione a quantidade de parcelas. O valor solicitado, a parcela e o total são atualizados na mesma hora.</p></details>
+        <details><summary>Quais valores posso simular?<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><p>Você pode simular de R$ 500 a R$ 3.500, em intervalos de R$ 250, com 3, 6, 9 ou 12 parcelas mensais.</p></details>
+        <details><summary>Como a parcela é calculada?<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><p>O cálculo ilustrativo usa parcelas fixas e uma taxa mensal de referência de <span data-simulation-rate>14,88%</span>. O total estimado é a soma das parcelas. IOF e tarifas não estão incluídos; a simulação não apresenta o custo efetivo total de uma contratação.</p></details>
+        <details><summary>A simulação aprova ou solicita um empréstimo?<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><p>Não. O simulador ajuda a comparar cenários e apresenta um resumo. Ele não envia uma proposta, não faz análise de crédito e não realiza uma contratação.</p></details>
+        <details><summary>Preciso pagar para fazer a simulação?<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><p>A simulação é gratuita e não pede CPF, senha ou dados bancários. Desconfie de qualquer solicitação de depósito antecipado para liberar um empréstimo.</p></details>
+      </div>
+    </div>
+  </section>
+</main>
+<footer class="site-footer" id="footer">
+  <div class="section-wrapper">
+    <div class="footer-grid">
+      <div class="footer-brand"><a class="brand-logo-link" href="#home-page--slider" aria-label="Empréstimo Fácil — início">__BRAND_LOGO__</a><p>Mais clareza para planejar.<br>Mais facilidade para comparar.</p></div>
+      <nav aria-label="Navegação do rodapé"><a href="#como-funciona">Como funciona</a><a href="#quem-somos">Quem somos</a><a href="#ajuda">Dúvidas frequentes</a></nav>
+      <div class="footer-info"><strong>Informações da simulação</strong><button type="button" data-dialog-action="calculation">Entenda o cálculo</button><button type="button" data-dialog-action="privacy">Privacidade</button><a href="#home-page--get-quote">Simular novamente</a></div>
+    </div>
+    <div class="footer-bottom"><p>© <span id="current-year">2026</span> Empréstimo Fácil.</p><p>Valores ilustrativos. A contratação depende de análise e condições específicas.</p></div>
+  </div>
+</footer>
+<dialog id="preview-dialog" aria-labelledby="preview-title" aria-describedby="preview-message">
+  <div class="dialog-heading"><span class="eyebrow">Empréstimo Fácil</span><button type="button" class="dialog-close" data-close aria-label="Fechar janela"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+  <h2 id="preview-title">Sua simulação</h2><p id="preview-message"></p>
+  <dl class="simulation-summary" id="simulation-summary">
+    <div><dt>Valor solicitado</dt><dd id="summary-amount"></dd></div>
+    <div><dt>Prazo</dt><dd id="summary-months"></dd></div>
+    <div class="summary-payment"><dt>Parcela mensal estimada</dt><dd id="summary-payment"></dd></div>
+    <div><dt>Juros estimados</dt><dd id="summary-interest"></dd></div>
+    <div><dt>Total estimado</dt><dd id="summary-total"></dd></div>
+    <div><dt>Taxa ilustrativa ao mês</dt><dd id="summary-rate"></dd></div>
+  </dl>
+  <p class="dialog-note" id="preview-note"></p><button type="button" class="dialog-return" data-close>Voltar à simulação</button>
+</dialog>
