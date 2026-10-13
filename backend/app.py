@@ -80,6 +80,7 @@ class Address(Model):
 class Income(Model):
     monthly_income: float = Field(strict=True, ge=1200, le=100000000, allow_inf_nan=False)
     occupation: StrictStr
+    source_description: StrictStr | None = Field(default=None, max_length=200)
 
     @field_validator('occupation')
     @classmethod
@@ -87,6 +88,15 @@ class Income(Model):
         if value not in {'employed', 'self_employed', 'business_owner', 'retired', 'other'}:
             raise ValueError('Invalid occupation')
         return value
+
+    @model_validator(mode='after')
+    def validate_source(self):
+        if self.occupation == 'other':
+            if self.source_description is None or len(self.source_description) < 3:
+                raise ValueError('Describe other income source')
+        elif self.source_description is not None:
+            raise ValueError('Income description only applies to other sources')
+        return self
 
 class BankAccount(Model):
     bank: StrictStr

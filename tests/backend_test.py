@@ -105,5 +105,18 @@ class BackendTests(unittest.TestCase):
         self.assertIsNone(stored['bank_account'])
         self.assertNotIn(data['pix']['key'].encode(),self.store.path.read_bytes())
 
+    def test_other_income_description(self):
+        data=payload();data['income']['occupation']='other'
+        for description in [None,'','  ','a','x'*201]:
+            candidate=copy.deepcopy(data);candidate['income']['source_description']=description
+            self.assertEqual(self.post(candidate).status_code,422)
+        data['income']['source_description']='Aluguel de imóvel'
+        self.assertEqual(self.post(data).status_code,201)
+        with self.store.connect() as db:
+            app_id,nonce,cipher=db.execute('SELECT application_id,nonce,ciphertext FROM applications').fetchone()
+        stored=json.loads(AESGCM(self.key).decrypt(nonce,cipher,app_id.encode()))
+        self.assertEqual(stored['income']['source_description'],'Aluguel de imóvel')
+        self.assertNotIn('Aluguel de imóvel'.encode(),self.store.path.read_bytes())
+
 if __name__ == '__main__':
     unittest.main()

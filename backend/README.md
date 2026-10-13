@@ -1,6 +1,6 @@
 # Cadastro e API para VPS
 
-O site inclui cinco etapas: Cadastro, Endereço, Renda, Conta bancária e Revisão. No GitHub Pages e no Sites, `applicationsApiUrl` permanece `null`: o formulário funciona, mas o envio fica indisponível e nenhum dado é gravado. A consulta automática ao ViaCEP envia apenas o CEP para preencher rua, bairro, cidade e estado; uma falha não impede o preenchimento manual. Nenhum CPF, senha ou dado bancário é colocado em localStorage, sessionStorage, URL ou cookies. O progresso existe apenas na página aberta; ao sair do cadastro, a senha é apagada.
+O site inclui cinco etapas: Cadastro, Endereço, Renda, Conta bancária e Revisão. No GitHub Pages e no Sites, `applicationsApiUrl` permanece `null`: o formulário funciona, mas o envio fica indisponível e nenhum dado é gravado. A consulta automática usa ViaCEP e OpenCEP como alternativa. Envia apenas o CEP para preencher rua, bairro, cidade e estado; uma falha não impede o preenchimento manual. Há cache na memória da página, cancelamento de consultas antigas, tentativas limitadas a 5 segundos por fonte e botão para tentar novamente. Nenhum CPF, senha ou dado bancário é colocado em localStorage, sessionStorage, URL ou cookies. O progresso existe apenas na página aberta; ao sair do cadastro, a senha é apagada.
 
 ## Executar na VPS
 
@@ -62,3 +62,5 @@ python3 -m unittest discover -s tests -p backend_test.py -v
 ```
 
 O GitHub Actions executa essas verificações e os testes de navegador, incluindo todas as etapas, máscaras, autorizações, falta de serviço, falha de envio, repetição idempotente e confirmação de protocolo. Todos os dados de teste são sintéticos.
+
+A renda usa formatação brasileira durante a digitação, mantendo centavos no valor numérico enviado à API. Para `income.occupation: "other"`, `income.source_description` exige 3 a 200 caracteres; para as demais opções esse campo deve ser `null` ou omitido. A descrição é incluída na revisão e no conteúdo criptografado. As fixtures de CEP contêm endereços públicos consultados em 13/10/2026; os dados pessoais dos testes são sintéticos.

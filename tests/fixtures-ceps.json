@@ -1,0 +1,200 @@
+[
+  {
+    "code": "01001000",
+    "data": {
+      "cep": "01001-000",
+      "logradouro": "Praça da Sé",
+      "complemento": "lado ímpar",
+      "unidade": "",
+      "bairro": "Sé",
+      "localidade": "São Paulo",
+      "uf": "SP",
+      "estado": "São Paulo",
+      "regiao": "Sudeste",
+      "ibge": "3550308",
+      "gia": "1004",
+      "ddd": "11",
+      "siafi": "7107"
+    }
+  },
+  {
+    "code": "20040002",
+    "data": {
+      "cep": "20040-002",
+      "logradouro": "Avenida Rio Branco",
+      "complemento": "de 128 a 144 - lado par",
+      "unidade": "",
+      "bairro": "Centro",
+      "localidade": "Rio de Janeiro",
+      "uf": "RJ",
+      "estado": "Rio de Janeiro",
+      "regiao": "Sudeste",
+      "ibge": "3304557",
+      "gia": "",
+      "ddd": "21",
+      "siafi": "6001"
+    }
+  },
+  {
+    "code": "30140071",
+    "data": {
+      "cep": "30140-071",
+      "logradouro": "Rua dos Aimorés",
+      "complemento": "de 971/972 a 1399/1400",
+      "unidade": "",
+      "bairro": "Boa Viagem",
+      "localidade": "Belo Horizonte",
+      "uf": "MG",
+      "estado": "Minas Gerais",
+      "regiao": "Sudeste",
+      "ibge": "3106200",
+      "gia": "",
+      "ddd": "31",
+      "siafi": "4123"
+    }
+  },
+  {
+    "code": "80010000",
+    "data": {
+      "cep": "80010-000",
+      "logradouro": "Rua José Loureiro",
+      "complemento": "",
+      "unidade": "",
+      "bairro": "Centro",
+      "localidade": "Curitiba",
+      "uf": "PR",
+      "estado": "Paraná",
+      "regiao": "Sul",
+      "ibge": "4106902",
+      "gia": "",
+      "ddd": "41",
+      "siafi": "7535"
+    }
+  },
+  {
+    "code": "90010000",
+    "data": {
+      "cep": "90010-000",
+      "logradouro": "Rua Siqueira Campos",
+      "complemento": "até 944/945",
+      "unidade": "",
+      "bairro": "Centro Histórico",
+      "localidade": "Porto Alegre",
+      "uf": "RS",
+      "estado": "Rio Grande do Sul",
+      "regiao": "Sul",
+      "ibge": "4314902",
+      "gia": "",
+      "ddd": "51",
+      "siafi": "8801"
+    }
+  },
+  {
+    "code": "40010000",
+    "data": {
+      "cep": "40010-000",
+      "logradouro": "Avenida da França",
+      "complemento": "",
+      "unidade": "",
+      "bairro": "Comércio",
+      "localidade": "Salvador",
+      "uf": "BA",
+      "estado": "Bahia",
+      "regiao": "Nordeste",
+      "ibge": "2927408",
+      "gia": "",
+      "ddd": "71",
+      "siafi": "3849"
+    }
+  },
+  {
+    "code": "50010000",
+    "data": {
+      "cep": "50010-000",
+      "logradouro": "Avenida Guararapes",
+      "complemento": "",
+      "unidade": "",
+      "bairro": "Santo Antônio",
+      "localidade": "Recife",
+      "uf": "PE",
+      "estado": "Pernambuco",
+      "regiao": "Nordeste",
+      "ibge": "2611606",
+      "gia": "",
+      "ddd": "81",
+      "siafi": "2531"
+    }
+  },
+  {
+    "code": "60060000",
+    "data": {
+      "cep": "60060-000",
+      "logradouro": "Rua Rodrigues Júnior",
+      "complemento": "até 1091/1092",
+      "unidade": "",
+      "bairro": "Centro",
+      "localidade": "Fortaleza",
+      "uf": "CE",
+      "estado": "Ceará",
+      "regiao": "Nordeste",
+      "ibge": "2304400",
+      "gia": "",
+      "ddd": "85",
+      "siafi": "1389"
+    }
+  },
+  {
+    "code": "69005010",
+    "data": {
+      "cep": "69005-010",
+      "logradouro": "Rua Barão de São Domingos",
+      "complemento": "",
+      "unidade": "",
+      "bairro": "Centro",
+      "localidade": "Manaus",
+      "uf": "AM",
+      "estado": "Amazonas",
+      "regiao": "Norte",
+      "ibge": "1302603",
+      "gia": "",
+      "ddd": "92",
+      "siafi": "0255"
+    }
+  },
+  {
+    "code": "66015000",
+    "data": {
+      "cep": "66015-000",
+      "logradouro": "Travessa Padre Eutíquio",
+      "complemento": "de 380/381 a 672/673",
+      "unidade": "",
+      "bairro": "Campina",
+      "localidade": "Belém",
+      "uf": "PA",
+      "estado": "Pará",
+      "regiao": "Norte",
+      "ibge": "1501402",
+      "gia": "",
+      "ddd": "91",
+      "siafi": "0427"
+    }
+  },
+  {
+    "code": "28941216",
+    "data": {
+      "cep": "28941-216",
+      "logradouro": "Rua José Antônio Alves",
+      "complemento": "",
+      "unidade": "",
+      "bairro": "Estação",
+      "localidade": "São Pedro da Aldeia",
+      "uf": "RJ",
+      "estado": "Rio de Janeiro",
+      "regiao": "Sudeste",
+      "ibge": "3305208",
+      "gia": "",
+      "ddd": "22",
+      "siafi": "5903"
+    }
+  }
+]
