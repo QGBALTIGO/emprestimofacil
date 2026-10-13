@@ -23,5 +23,6 @@
     "enabled": true,
     "daysPerMonth": 30,
     "daysPerWeek": 7
-  }
+  },
+  "applicationsApiUrl": null
 }

@@ -5,3 +5,9 @@ __pycache__/
 *.zip
 playwright-report/
 test-results/
+
+var/
+.env
+.venv/
+*.sqlite
+*.sqlite-*

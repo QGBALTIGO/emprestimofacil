@@ -52,8 +52,8 @@
   function updateSummary(){
     const q=getQuote(amount,weeks),initial=getPreliminaryPricing(amount,weeks);setText('summary-amount',money.format(amount));setText('summary-weeks',weeks+' parcelas semanais');setText('summary-payment',q?money.format(q.installment_amount):initial?money.format(initial.installment_amount)+' (valor inicial, antes de encargos)':'A confirmar');
     for(const [id,key,format] of [['total','total_amount',money.format],['rate','monthly_rate',percent],['cet','annual_cet',percent]]){d.getElementById('summary-'+id+'-row').hidden=!q;setText('summary-'+id,q?format(q[key]):'');}
-    const url=buildApplicationUrl(config.contact,amount,weeks);d.getElementById('application-action').disabled=!url;
-    setText('application-status',url?'A solicitação continua no atendimento. A aprovação depende de análise de crédito.':'O atendimento para novas solicitações está temporariamente indisponível. Tente novamente mais tarde.');
+    const url=buildApplicationUrl(config.contact,amount,weeks);d.getElementById('application-action').disabled=false;
+    setText('application-status','Continue para preencher seu cadastro. A aprovação depende de análise de crédito.');
   }
   function render(){
     range.value=String(amount);range.style.setProperty('--range-progress',(amount-config.minAmount)/(config.maxAmount-config.minAmount)*100+'%');range.setAttribute('aria-valuetext',money.format(amount));setText('quote-amount-display','R$ '+amount);
@@ -80,18 +80,18 @@
   range.addEventListener('input',()=>setAmount(range.value));range.addEventListener('change',()=>setAmount(range.value));
   for(const b of form.querySelectorAll('[data-amount-adjust]'))b.addEventListener('click',()=>setAmount(amount+Number(b.dataset.amountAdjust)*config.amountStep));
   for(const r of form.querySelectorAll('[name="weeks"]'))r.addEventListener('change',()=>{if(r.checked)selectWeeks(r.value);});
-  function openDialog(dialog,trigger){requestTrigger=trigger||d.activeElement;dialog.showModal();d.body.classList.add('dialog-open');}
+  function openDialog(dialog,trigger){requestTrigger=trigger||d.activeElement;dialog._returnFocus=requestTrigger;dialog.showModal();d.body.classList.add('dialog-open');}
   form.addEventListener('submit',event=>{event.preventDefault();updateSummary();openDialog(d.getElementById('request-dialog'),d.getElementById('home-page--get-quote-submit-btn'));});
-  d.getElementById('application-action').addEventListener('click',()=>{const url=buildApplicationUrl(config.contact,amount,weeks);if(url)window.open(url,'_blank','noopener,noreferrer');});
+  d.getElementById('application-action').addEventListener('click',()=>{d.getElementById('request-dialog').close();window.EmprestimoFacilRegistration.open();});
   for(const dialog of dialogs){
     for(const b of dialog.querySelectorAll('[data-close]'))b.addEventListener('click',()=>dialog.close());
     dialog.addEventListener('cancel',()=>{if(!dialogs.some(x=>x!==dialog&&x.open))d.body.classList.remove('dialog-open');});
-    dialog.addEventListener('close',()=>{if(!dialogs.some(x=>x.open))d.body.classList.remove('dialog-open');requestTrigger?.focus({preventScroll:true});});
+    dialog.addEventListener('close',()=>{if(!dialogs.some(x=>x.open))d.body.classList.remove('dialog-open');(dialog._returnFocus||requestTrigger)?.focus({preventScroll:true});});
     let outside=false;const onBackdrop=e=>{const r=dialog.getBoundingClientRect();return e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom);};
     dialog.addEventListener('pointerdown',e=>{outside=onBackdrop(e);});dialog.addEventListener('pointercancel',()=>{outside=false;});dialog.addEventListener('click',e=>{if(outside&&onBackdrop(e))dialog.close();outside=false;});
   }
   for(const button of d.querySelectorAll('[data-info]'))button.addEventListener('click',()=>{
-    const privacy=button.dataset.info==='privacy';setText('info-title',privacy?'Sua privacidade':'Condições de contratação');setText('info-message',privacy?'Esta página não pede CPF, senha ou dados bancários para escolher o valor e o prazo. A continuidade da solicitação acontece no canal de atendimento indicado. Confira as informações de privacidade desse canal antes de fornecer dados pessoais.':'O crédito está sujeito à análise. Antes de contratar, confira a instituição responsável, a taxa de juros, os impostos, as tarifas, o total a pagar e o custo efetivo total (CET). Nunca pague uma taxa antecipada para liberar empréstimo.');openDialog(d.getElementById('info-dialog'),button);
+    const privacy=button.dataset.info==='privacy';setText('info-title',privacy?'Sua privacidade':'Condições de contratação');setText('info-message',privacy?'Ao continuar a solicitação, o cadastro pede seus dados pessoais. Essas informações não são guardadas no armazenamento do navegador. Sem o serviço de envio habilitado, os dados não são transmitidos. Consulte a Política de Privacidade apresentada no cadastro antes de continuar.':'O crédito está sujeito à análise. Antes de contratar, confira a instituição responsável, a taxa de juros, os impostos, as tarifas, o total a pagar e o custo efetivo total (CET). Nunca pague uma taxa antecipada para liberar empréstimo.');openDialog(d.getElementById('info-dialog'),button);
   });
   const nav=d.getElementById('site-header--mobile-nav'),toggle=nav.querySelector('.mobile-nav--toggle'),navContent=d.getElementById('main-navigation'),desktop=window.matchMedia('(min-width: 900px)');
   function closeMenu(focus){nav.classList.remove('active');toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','Abrir menu');navContent.inert=!desktop.matches;if(focus)toggle.focus();}
@@ -101,7 +101,7 @@
   window.addEventListener('resize',positionAmountBubble);
   if('ResizeObserver' in window)new window.ResizeObserver(positionAmountBubble).observe(range);
   d.fonts?.ready?.then(positionAmountBubble);
-  window.EmprestimoFacil=Object.freeze({setAmount,selectWeeks,loadQuotes,getQuote,getPreliminaryPricing,buildApplicationUrl,getState:()=>({amount,weeks,installmentFrequency:config.installmentFrequency,quote:getQuote(amount,weeks),preliminaryPricing:getPreliminaryPricing(amount,weeks),quoteStatus,applicationReady:Boolean(buildApplicationUrl(config.contact,amount,weeks))})});
+  window.EmprestimoFacil=Object.freeze({setAmount,selectWeeks,loadQuotes,getQuote,getPreliminaryPricing,buildApplicationUrl,getState:()=>({amount,weeks,installmentFrequency:config.installmentFrequency,quote:getQuote(amount,weeks),preliminaryPricing:getPreliminaryPricing(amount,weeks),quoteStatus,applicationReady:Boolean(window.EmprestimoFacilRegistration),submissionReady:Boolean(window.EmprestimoFacilRegistration?.getState().serviceReady)})});
   try{loadQuotes(config.quotes);}catch{quoteStatus='error';render();}
   async function fetchQuotes(){
     if(!config.quotesUrl)return;
