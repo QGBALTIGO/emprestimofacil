@@ -18,5 +18,10 @@
   "initialWeeks": 12,
   "installmentFrequency": "weekly",
   "monthlyRateMin": 0.158,
-  "monthlyRateMax": 0.179
+  "monthlyRateMax": 0.179,
+  "preliminaryPricing": {
+    "enabled": true,
+    "daysPerMonth": 30,
+    "daysPerWeek": 7
+  }
 }

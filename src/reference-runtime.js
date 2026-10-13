@@ -35,32 +35,42 @@
     return 'https://wa.me/'+phone+'?text='+encodeURIComponent('Olá! Quero solicitar um empréstimo de '+money.format(value)+' em '+term+' parcelas semanais. Gostaria de conferir as condições.');
   }
   const setText=(id,text)=>{d.getElementById(id).textContent=text;};
+  function getPreliminaryPricing(value,term){
+    const policy=config.preliminaryPricing,a=Number(value),n=Number(term);
+    if(!policy?.enabled||!Number.isFinite(a)||a<config.minAmount||a>config.maxAmount||(a-config.minAmount)%config.amountStep!==0||!config.terms.includes(n))return null;
+    const rate=Math.expm1(Math.log1p(config.monthlyRateMin)*policy.daysPerWeek/policy.daysPerMonth);
+    const raw=rate===0?a/n:a*rate/(-Math.expm1(-n*Math.log1p(rate))),payment=Math.round(raw*100)/100;
+    return Object.freeze({amount_requested:a,installments_requested:n,installment_frequency:'weekly',installment_amount:payment,total_amount:Math.round(payment*100)*n/100,raw_installment_amount:raw,monthly_rate:config.monthlyRateMin,weekly_rate:rate,is_preliminary:true,excludes:['iof','fees']});
+  }
   function positionAmountBubble(){
     const bubble=d.getElementById('quote-amount-display'),width=range.clientWidth,bubbleWidth=bubble.offsetWidth;
     if(!width||!bubbleWidth)return;
-    const progress=(amount-config.minAmount)/(config.maxAmount-config.minAmount),target=18+(width-36)*progress;
+    const progress=(amount-config.minAmount)/(config.maxAmount-config.minAmount),target=15+(width-30)*progress;
     const center=Math.min(width-bubbleWidth/2,Math.max(bubbleWidth/2,target));
     bubble.style.left=center+'px';bubble.style.setProperty('--tip-left',(target-center+bubbleWidth/2)+'px');
   }
   function updateSummary(){
-    const q=getQuote(amount,weeks);setText('summary-amount',money.format(amount));setText('summary-weeks',weeks+' parcelas semanais');setText('summary-payment',q?money.format(q.installment_amount):'A confirmar');
+    const q=getQuote(amount,weeks),initial=getPreliminaryPricing(amount,weeks);setText('summary-amount',money.format(amount));setText('summary-weeks',weeks+' parcelas semanais');setText('summary-payment',q?money.format(q.installment_amount):initial?money.format(initial.installment_amount)+' (valor inicial, antes de encargos)':'A confirmar');
     for(const [id,key,format] of [['total','total_amount',money.format],['rate','monthly_rate',percent],['cet','annual_cet',percent]]){d.getElementById('summary-'+id+'-row').hidden=!q;setText('summary-'+id,q?format(q[key]):'');}
     const url=buildApplicationUrl(config.contact,amount,weeks);d.getElementById('application-action').disabled=!url;
     setText('application-status',url?'A solicitação continua no atendimento. A aprovação depende de análise de crédito.':'O atendimento para novas solicitações está temporariamente indisponível. Tente novamente mais tarde.');
   }
   function render(){
-    range.value=String(amount);range.style.setProperty('--range-progress',(amount-config.minAmount)/(config.maxAmount-config.minAmount)*100+'%');range.setAttribute('aria-valuetext',money.format(amount));setText('quote-amount-display',money.format(amount));
+    range.value=String(amount);range.style.setProperty('--range-progress',(amount-config.minAmount)/(config.maxAmount-config.minAmount)*100+'%');range.setAttribute('aria-valuetext',money.format(amount));setText('quote-amount-display','R$ '+amount);
     positionAmountBubble();
     for(const radio of form.querySelectorAll('[name="weeks"]'))radio.checked=Number(radio.value)===weeks;
     for(const button of form.querySelectorAll('[data-amount-adjust]'))button.disabled=Number(button.dataset.amountAdjust)<0?amount===config.minAmount:amount===config.maxAmount;
-    const q=getQuote(amount,weeks);d.getElementById('quote-result').classList.toggle('has-quote',Boolean(q));d.getElementById('quote-total-row').hidden=!q;
-    setText('quote-payment-display',q?money.format(q.installment_amount):(quoteStatus==='loading'?'Consultando…':'A confirmar'));
+    const q=getQuote(amount,weeks),initial=getPreliminaryPricing(amount,weeks);d.getElementById('quote-result').classList.toggle('has-quote',Boolean(q||initial));d.getElementById('quote-total-row').hidden=!q;
+    setText('quote-payment-label',q?'Sua parcela semanal será de:':'Sua parcela semanal a partir de:');
+    setText('quote-payment-display',q?money.format(q.installment_amount):initial?money.format(initial.installment_amount):(quoteStatus==='loading'?'Consultando…':'A confirmar'));
     setText('quote-payment-duration',q?weeks+' parcelas semanais • Taxa de '+percent(q.monthly_rate)+' a.m.':'Parcela e custos apresentados na proposta, antes da contratação.');
     setText('quote-monthly-rate-display',q?percent(q.monthly_rate):rateRange());
     setText('quote-annual-rate-display',q?percent(annualInterest(q.monthly_rate)):rateRange(true));
     setText('quote-iof-display',q?.iof_amount!=null?money.format(q.iof_amount):'Informado na proposta');
     setText('quote-fees-display',q?.fees_amount!=null?money.format(q.fees_amount):'Informadas na proposta');
     setText('quote-cet-display',q?percent(q.annual_cet):'Informado na proposta');
+    d.querySelector('.pricing-explanation').hidden=Boolean(q)||!initial;
+    setText('loan-rate-info',q?'Taxa de juros: '+percent(q.monthly_rate)+' ao mês (equivalente a '+percent(annualInterest(q.monthly_rate))+' ao ano).':'Taxa de juros: de '+rateRange()+' ao mês (equivalente a '+rateRange(true)+' ao ano).');
     setText('quote-total-display',q?money.format(q.total_amount):'');setText('quote-status',q?'CET: '+percent(q.annual_cet)+' a.a. Crédito sujeito à análise.':quoteStatus==='error'?'Não foi possível consultar as condições agora. Tente novamente mais tarde.':'A aprovação e as condições dependem da análise de crédito.');
     if(d.getElementById('request-dialog').open)updateSummary();
   }
@@ -91,7 +101,7 @@
   window.addEventListener('resize',positionAmountBubble);
   if('ResizeObserver' in window)new window.ResizeObserver(positionAmountBubble).observe(range);
   d.fonts?.ready?.then(positionAmountBubble);
-  window.EmprestimoFacil=Object.freeze({setAmount,selectWeeks,loadQuotes,getQuote,buildApplicationUrl,getState:()=>({amount,weeks,installmentFrequency:config.installmentFrequency,quote:getQuote(amount,weeks),quoteStatus,applicationReady:Boolean(buildApplicationUrl(config.contact,amount,weeks))})});
+  window.EmprestimoFacil=Object.freeze({setAmount,selectWeeks,loadQuotes,getQuote,getPreliminaryPricing,buildApplicationUrl,getState:()=>({amount,weeks,installmentFrequency:config.installmentFrequency,quote:getQuote(amount,weeks),preliminaryPricing:getPreliminaryPricing(amount,weeks),quoteStatus,applicationReady:Boolean(buildApplicationUrl(config.contact,amount,weeks))})});
   try{loadQuotes(config.quotes);}catch{quoteStatus='error';render();}
   async function fetchQuotes(){
     if(!config.quotesUrl)return;

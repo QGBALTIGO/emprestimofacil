@@ -6,6 +6,7 @@ config=json.loads((root/'src/business-config.json').read_text())
 assert config['minAmount']<=config['initialAmount']<=config['maxAmount']
 assert config['initialWeeks'] in config['terms']
 assert config['installmentFrequency']=='weekly'
+assert config['preliminaryPricing']['daysPerWeek']==7 and config['preliminaryPricing']['daysPerMonth']==30
 assert 0<=config['monthlyRateMin']<=config['monthlyRateMax']<=1
 assert (config['maxAmount']-config['minAmount'])%config['amountStep']==0
 fonts=(root/'assets/reference/fonts.css').read_text()

@@ -12,3 +12,10 @@
   font-stretch: normal;
   src: url(https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsg-1x4gaVc.ttf) format('truetype');
 }
+
+@font-face {
+  font-family: 'Bree Serif';
+  font-style: normal;
+  font-weight: 400;
+  src: url(assets/reference/4UaHrEJCrhhnVA3DgluA96rp4g.ttf) format('truetype');
+}
