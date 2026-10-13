@@ -1,6 +1,7 @@
 (function(){
   'use strict';
-  const d=document,cep=d.getElementById('reg-cep'),status=d.getElementById('cep-lookup-status'),retry=d.getElementById('cep-retry'),form=d.getElementById('registration-form');
+  function attach({form,cep,status,retry,isActive,stepEvent,exitEvent}){
+  const d=document;
   const names={street:'logradouro',district:'bairro',city:'localidade',state:'uf'},input=name=>form.elements.namedItem(name),digits=s=>String(s).replace(/\D/g,''),cache=new Map();
   const providers=[code=>'https://viacep.com.br/ws/'+code+'/json/',code=>'https://opencep.com/v1/'+code+'.json'];
   let timer=null,controller=null,sequence=0,autoValues={},lastLookup=null;
@@ -19,9 +20,9 @@
     try{const response=await fetch(url,{signal:child.signal,credentials:'omit',referrerPolicy:'no-referrer',redirect:'error'});if(response.status===404)return null;if(!response.ok)throw Error('CEP unavailable');return normalize(await response.json(),code);}finally{clearTimeout(timeout);parentSignal.removeEventListener('abort',abort);}
   }
   async function lookup(){
-    const code=digits(cep.value);if(code.length!==8||code===lastLookup||d.querySelector('[data-step="1"]').hidden)return;if(code==='00000000'||code==='99999999'){lastLookup=code;status.textContent='CEP não encontrado. Confira o número ou preencha o endereço manualmente.';retry.hidden=true;return;}
+    const code=digits(cep.value);if(code.length!==8||code===lastLookup||!isActive())return;if(code==='00000000'||code==='99999999'){lastLookup=code;status.textContent='CEP não encontrado. Confira o número ou preencha o endereço manualmente.';retry.hidden=true;return;}
     const own=++sequence,snapshot=Object.fromEntries(Object.keys(names).map(name=>[name,input(name).value])),coordinator=new AbortController();controller=coordinator;cep.setAttribute('aria-busy','true');retry.hidden=true;retry.disabled=true;status.textContent='Buscando endereço…';
-    const current=()=>own===sequence&&digits(cep.value)===code&&!d.querySelector('[data-step="1"]').hidden&&!coordinator.signal.aborted;
+    const current=()=>own===sequence&&digits(cep.value)===code&&isActive()&&!coordinator.signal.aborted;
     try{
       let address=cache.get(code),unavailable=0,notFound=0;
       if(!address)for(const provider of providers){try{address=await request(provider(code),code,coordinator.signal);if(!current())return;if(address)break;notFound++;}catch{if(!current())return;unavailable++;}}
@@ -35,6 +36,9 @@
   cep.addEventListener('input',()=>{cancel();lastLookup=null;clearAuto();retry.hidden=true;status.textContent='Digite o CEP para preencher o endereço automaticamente.';if(digits(cep.value).length===8)timer=setTimeout(lookup,300);});
   cep.addEventListener('blur',event=>{if(event.relatedTarget!==retry&&digits(cep.value).length===8&&!controller){clearTimeout(timer);lookup();}});
   retry.addEventListener('click',()=>{cancel();lastLookup=null;cache.delete(digits(cep.value));lookup();});
-  d.addEventListener('registration-step-change',()=>{if(d.querySelector('[data-step="1"]').hidden)cancel();else if(digits(cep.value).length===8&&!controller)timer=setTimeout(lookup,300);});
-  d.addEventListener('registration-exit',cancel);
+  d.addEventListener(stepEvent,()=>{if(!isActive())cancel();else if(digits(cep.value).length===8&&!controller)timer=setTimeout(lookup,300);});
+  d.addEventListener(exitEvent,cancel);
+  }
+  window.EmprestimoFacilCEP=Object.freeze({attach});
+  attach({form:document.getElementById('registration-form'),cep:document.getElementById('reg-cep'),status:document.getElementById('cep-lookup-status'),retry:document.getElementById('cep-retry'),isActive:()=>!document.querySelector('[data-step="1"]').hidden,stepEvent:'registration-step-change',exitEvent:'registration-exit'});
 })();

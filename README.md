@@ -19,3 +19,18 @@ A referência pública usa ofertas pré-calculadas recebidas do servidor (`/quot
 ## Testes
 
 `npm ci` instala dependências somente de desenvolvimento. `npm run test:unit` verifica seleção, limites, cotações, expiração, formatação da renda e validações do cadastro. A bateria inclui vários CEPs, consultas com falha e descrição de outras fontes de renda. `npm test` executa a suíte Playwright. No GitHub Actions, Chrome, Firefox e WebKit cobrem 11 tamanhos de tela cada, incluindo celular, tablet e PC. As capturas e o relatório ficam nos artefatos da execução. Dispositivos são emulados; isso não é teste em todos os aparelhos físicos.
+
+
+## Cadastro PF complementar
+
+A aba `#cadastro-pf` está no menu e no botão “Completar cadastro PF” da tela final do pré-cadastro. Tem seis etapas: validação, dados, titular, documentos, contatos e revisão. O botão do pré-cadastro reaproveita apenas dados necessários e nunca a senha. O cadastro inicial continua independente.
+
+Nesta entrega não há endpoint de envio PF, conta aberta, e-mail verificado, OCR, prova de vida ou análise de crédito automática. O e-mail fica pendente e o resultado diz que os dados não foram enviados. A futura integração deverá apresentar a política de tratamento aplicável, verificar o e-mail no servidor e enviar dados/arquivos por conexão segura com autorização do titular. A API existente em `backend/` recebe o pré-cadastro original; não aceita este novo cadastro documental.
+
+Frente, verso e selfie usam `getUserMedia` e `canvas`, sem seletor de galeria. O vídeo pede câmera e microfone, tem duração máxima de 20 segundos, gravação mínima de 2 segundos e limite de 3 MiB. O navegador controla as permissões e o dispositivo disponibilizado; a interface não garante a autenticidade da câmera nem faz reconhecimento facial. Comprovantes aceitam PDF, JPEG, PNG e BMP com limite de 3 MiB e verificação inicial de extensão e assinatura. Isso não substitui validação e inspeção no servidor. CLT exige comprovante de vínculo; motorista de aplicativo exige relatório de viagens. O comprovante de endereço pede data dos últimos 31 dias.
+
+Documentos, dados, localização e contatos ficam somente na memória da aba. As URLs de prévia são revogadas ao remover ou sair; captura é encerrada ao fechar a câmera, trocar etapa, ocultar a página ou sair. Não se utiliza localStorage, IndexedDB ou cookies para esses dados. Apenas o CEP é consultado externamente pelo mesmo módulo ViaCEP/OpenCEP, com estado separado para cada formulário.
+
+Localização é pontual e opcional, com permissão, coordenadas, precisão informada em metros e data da coleta. Não há rastreamento contínuo nem fotos/vídeos de entrada na residência. Até cinco contatos de familiares são opcionais; o usuário declara autorização antes de compartilhar. O seletor de contatos aparece somente com suporte do navegador, pede apenas nome e telefone e preenche no máximo cinco contatos selecionados, sem importar a agenda inteira. Gênero e perfil do Instagram também são opcionais. Os contatos não são usados automaticamente para cobrança.
+
+Os testes PF cobrem validações, comprovantes, captura/gravação, permissões negadas, cancelamento de permissão pendente, contatos, localização, revisão e descarte dos dados. Câmera, microfone, localização e contatos usam APIs substituídas nos testes automatizados; a captura real deve ser conferida em aparelhos físicos após disponibilizar a página por HTTPS.
