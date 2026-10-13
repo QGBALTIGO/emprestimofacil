@@ -5,7 +5,9 @@ const clean=x=>x.replace(/\u00a0/g,' ');
 test.beforeEach(async({page})=>{await page.goto('/');await page.evaluate(()=>document.fonts.ready);});
 test('layout, fotos, logos transparentes e tema claro',async({page},info)=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
- if(page.viewportSize().width>=700)await expect(page.locator('h1')).toBeVisible();else await expect(page.locator('.reference-quote')).toBeVisible();
+ await expect(page.locator('h1')).toBeVisible();await expect(page.locator('.hero-lead')).toBeVisible();
+ if(page.viewportSize().width<700){const intro=await page.locator('.hero-copy').boundingBox(),card=await page.locator('.reference-quote').boundingBox();expect(intro.y+intro.height).toBeLessThanOrEqual(card.y);}
+ for(const item of await page.locator('.about-difference').all()){const title=await item.locator('h4').boundingBox(),icon=await item.locator('.about-icon').boundingBox(),copy=await item.locator('p').boundingBox();expect(Math.abs(title.y+title.height/2-icon.y-icon.height/2)).toBeLessThanOrEqual(1);expect(copy.y).toBeGreaterThanOrEqual(icon.y+icon.height);}
  await expect(page.locator('h1')).toHaveText('Seus planos, mais perto.');await expect(page.locator('#about-title')).toHaveText('Quem somos e nossa história');await expect(page.locator('#ajuda h2')).toHaveText('Uma ajuda para seguir com confiança.');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
  for(const img of await page.locator('img').all()){if(await img.isVisible())await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate(e=>e.complete&&e.naturalWidth>0)).toBe(true);}
@@ -15,6 +17,7 @@ test('layout, fotos, logos transparentes e tema claro',async({page},info)=>{
  await page.emulateMedia({colorScheme:'dark'});
  expect(await page.locator('body').evaluate(e=>getComputedStyle(e).backgroundColor)).toBe('rgb(255, 255, 255)');
  await expect(page.locator('main')).not.toContainText(/simula[çc]|ilustrativ|prot[oó]tipo|367,15/i);
+ await page.locator('.about-difference').first().scrollIntoViewIfNeeded();await page.screenshot({path:info.outputPath('diferenciais-'+info.project.name+'.png'),fullPage:false,animations:'disabled'});
  await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:info.outputPath('inicio-'+info.project.name+'.png'),fullPage:false,animations:'disabled'});await page.screenshot({path:info.outputPath('pagina-'+info.project.name+'.png'),fullPage:true,animations:'disabled'});expect(errors).toEqual([]);
 });
 test('barra atualiza durante o movimento, limites e teclado',async({page})=>{
