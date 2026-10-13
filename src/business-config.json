@@ -26,5 +26,6 @@
   },
   "applicationsApiUrl": null,
   "securityApiUrl": null,
-  "pfApplicationsApiUrl": null
+  "pfApplicationsApiUrl": null,
+  "paymentApiUrl": null
 }

@@ -13,7 +13,7 @@ def main():
     path = Path(__file__).resolve().parents[1]/'src/business-config.json'
     config = json.loads(path.read_text())
     for name,value in {'applicationsApiUrl':'/api/applications','securityApiUrl':'/api/security',
-                       'pfApplicationsApiUrl':'/api/pf/applications'}.items():
+                       'pfApplicationsApiUrl':'/api/pf/applications','paymentApiUrl':'/api/installments'}.items():
         config[name] = value if args.vps else None
     path.write_text(json.dumps(config,ensure_ascii=False,indent=2)+'\n')
     print('Rotas públicas configuradas. Reconstrua a página; nenhuma credencial foi gravada no site.')

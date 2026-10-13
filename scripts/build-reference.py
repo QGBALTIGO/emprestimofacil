@@ -28,5 +28,10 @@ result=result.replace('<meta name="color-scheme"', '<meta http-equiv="Content-Se
 out=root/'dist' if (root/'.openai/hosting.json').exists() else root
 out.mkdir(exist_ok=True)
 (out/'index.html').write_text(result)
+payment_runtime=(root/'src/payments-runtime.js').read_text()
+payment_digest=base64.b64encode(hashlib.sha256(payment_runtime.encode()).digest()).decode()
+payment_policy="default-src 'self'; script-src 'sha256-"+payment_digest+"'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
+payment='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="'+html.escape(payment_policy,quote=True)+'"><title>Pagamento de parcela | Empréstimo Fácil</title><link rel="icon" href="assets/logo-transparent.png"><style>'+(root/'src/payments.css').read_text()+'</style></head><body>'+(root/'src/payments-body.html').read_text()+'<script id="payment-config" type="application/json">'+json.dumps({'apiUrl':config.get('paymentApiUrl')},ensure_ascii=False).replace('<','\\u003c')+'</script><script>'+payment_runtime+'</script></body></html>'
+(out/'pagamentos.html').write_text(payment)
 if out!=root:shutil.copytree(root/'assets',out/'assets',dirs_exist_ok=True)
 print(json.dumps({'output':str(out/'index.html'),'bytes':len(result.encode()),'quotes':len(config['quotes']),'contact_configured':bool(config['contact']['whatsapp'] or config['contact']['applicationUrl'])}))

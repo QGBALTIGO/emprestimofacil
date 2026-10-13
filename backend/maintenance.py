@@ -17,6 +17,7 @@ import pyotp
 from backend.app import Store
 from backend.private_store import PrivateStore, password_hash
 from backend.providers import ProviderUnavailable, Providers
+from backend.billing_store import BillingStore
 
 
 def configured_store():
@@ -24,7 +25,9 @@ def configured_store():
         key = base64.b64decode(os.environ['DATA_ENCRYPTION_KEY'],validate=True)
         if len(key) != 32:
             raise ValueError()
-        return PrivateStore(Store(os.environ['APPLICATIONS_DB'],key))
+        private=PrivateStore(Store(os.environ['APPLICATIONS_DB'],key))
+        BillingStore(private)
+        return private
     except (KeyError,ValueError):
         raise SystemExit('Configure APPLICATIONS_DB e DATA_ENCRYPTION_KEY no ambiente privado do serviço.') from None
 
@@ -75,6 +78,10 @@ def restore(private, source):
             encrypted.extend((prefix+identity,content) for identity,content in db.execute(
                 'SELECT '+identity_column+','+data_column+' FROM '+table))
         applications = db.execute('SELECT application_id,nonce,ciphertext FROM applications').fetchall()
+        existing={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        for table,prefix in [('billing_contracts','contract:'),('billing_attempts','payment:')]:
+            if table in existing:
+                encrypted.extend((prefix+identity,content) for identity,content in db.execute('SELECT id,payload FROM '+table))
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     for purpose,content in encrypted:
         private.unseal(purpose,content)
@@ -86,6 +93,8 @@ def restore(private, source):
     with private.store.connect() as db:
         counts = sum(db.execute('SELECT count(*) FROM '+table).fetchone()[0]
                      for table in ['applications','pf_records','administrators','secure_sessions'])
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='billing_contracts'").fetchone():
+            counts+=db.execute('SELECT count(*) FROM billing_contracts').fetchone()[0]
     if counts:
         raise ValueError('Restaure em um diretório novo e vazio, com o serviço parado.')
     shutil.copyfile(source/'applications.sqlite',private.store.path)
@@ -106,10 +115,13 @@ def restore(private, source):
             db.execute('INSERT OR IGNORE INTO provider_deletions VALUES (?,?)',(link,private.clock()))
         db.execute('DELETE FROM secure_sessions');db.execute('DELETE FROM admin_sessions')
         db.execute('DELETE FROM bank_attempts')
+        for table in ['billing_sessions','billing_links']:
+            if table in existing:db.execute('DELETE FROM '+table)
 
 
 def purge(private, days):
     stats = private.purge(days)
+    stats['contracts_removed']=BillingStore(private).purge()
     provider = Providers()
     with private.store.connect() as db:
         links = [r[0] for r in db.execute('SELECT link FROM provider_deletions ORDER BY created LIMIT 100')]

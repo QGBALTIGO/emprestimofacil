@@ -110,15 +110,15 @@ class Security:
         @app.middleware('http')
         async def protect(request: Request, call_next):
             path = request.url.path
-            if path.startswith(('/api/security/','/api/pf/','/api/admin/')):
-                callback = path.startswith('/api/security/bank/callback/') or path == '/api/security/bank/webhook'
+            if path.startswith(('/api/security/','/api/pf/','/api/admin/','/api/installments/')):
+                callback = path.startswith('/api/security/bank/callback/') or path in {'/api/security/bank/webhook','/api/installments/cakto/webhook'}
                 if request.method not in {'GET','HEAD'} and not callback:
                     if not self.enabled:
                         return JSONResponse({'detail':'Serviço ainda não disponível.'},status_code=503)
                     if request.headers.get('origin') != self.origin:
                         return JSONResponse({'detail':'Origem não permitida.'},status_code=403)
                 if request.method not in {'GET','HEAD'}:
-                    limit = MAX_FILE if '/files/' in path else 24576
+                    limit = MAX_FILE if '/files/' in path else 131072 if path=='/api/installments/cakto/webhook' else 24576
                     body = bytearray()
                     async for chunk in request.stream():
                         body.extend(chunk)
