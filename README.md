@@ -1,6 +1,6 @@
 # Empréstimo Fácil
 
-Site responsivo com seleção de valor e prazo, cotação oficial, encaminhamento para atendimento, perguntas frequentes e logos PNG transparentes. Não contém parcelas geradas com juros inventados ou informações institucionais de terceiros.
+Site responsivo com seleção de valor e parcelamento semanal, integração para cotações, conteúdo institucional, perguntas frequentes e logos PNG transparentes. Os textos institucionais e a FAQ seguem o conteúdo fornecido para a marca Empréstimo Fácil. O código não calcula parcelas a partir de taxas inventadas.
 
 ## Publicar e editar
 
@@ -10,9 +10,9 @@ A raiz contém `index.html` e `assets/`, prontos para hospedagem estática. Depo
 
 Configure `src/business-config.json` com o WhatsApp oficial em formato internacional ou a URL HTTPS da instituição que recebe solicitações. Para exibir valores de parcelas, informe uma tabela oficial em `quotes` ou um endpoint HTTPS em `quotesUrl` que retorne `{ "quotes": [...] }`.
 
-Cada cotação requer: `amount_requested`, `installments_requested`, `installment_amount`, `total_amount`, `monthly_rate` e `annual_cet`. Taxa e CET são decimais (por exemplo, 0.02 significa 2%). Pode conter `expires_at` em ISO 8601. Parcela, total e prazo precisam ser coerentes. Não coloque segredos ou credenciais no JSON público.
+Cada cotação requer: `amount_requested`, `installments_requested`, `installment_frequency` igual a `weekly`, `installment_amount`, `total_amount`, `monthly_rate` e `annual_cet`. A periodicidade das parcelas é semanal; `monthly_rate` continua representando a taxa de juros mensal. O endpoint recebe `installment_frequency=weekly`; respostas mensais ou sem periodicidade são rejeitadas. Taxa e CET são decimais (por exemplo, 0.02 significa 2%). Pode conter `expires_at` em ISO 8601. Parcela, total e prazo precisam ser coerentes. Não coloque segredos ou credenciais no JSON público.
 
-**Estado atual:** o usuário ainda não forneceu taxas comerciais nem recebedor de propostas. A página mostra que as condições devem ser consultadas e não confirma aprovação ou envio de solicitação. O encaminhamento fica indisponível até que o canal real seja informado. O código não concede crédito, não faz análise bancária e não cria contratos.
+**Estado atual:** a FAQ informa a faixa de juros recebida no conteúdo comercial, mas ainda não há tabela de cotações individuais, endpoint de crédito ou canal para receber propostas. A página mostra que as condições devem ser consultadas e não confirma aprovação ou envio de solicitação. A ajuda não oferece links de contato ou portal. O código não concede crédito, não faz análise bancária e não cria contratos.
 
 ## Testes
 

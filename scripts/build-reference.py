@@ -4,7 +4,8 @@ import re,json,shutil
 root=Path(__file__).resolve().parents[1]
 config=json.loads((root/'src/business-config.json').read_text())
 assert config['minAmount']<=config['initialAmount']<=config['maxAmount']
-assert config['initialMonths'] in config['terms']
+assert config['initialWeeks'] in config['terms']
+assert config['installmentFrequency']=='weekly'
 assert (config['maxAmount']-config['minAmount'])%config['amountStep']==0
 fonts=(root/'assets/reference/fonts.css').read_text()
 fonts=re.sub(r'url\(([^)]+)\)',lambda m:'url("assets/reference/'+Path(urlparse(m[1].strip('\"\'')).path).name+'")',fonts)

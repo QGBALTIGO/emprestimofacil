@@ -3,12 +3,18 @@
   "maxAmount": 3500,
   "amountStep": 250,
   "initialAmount": 2000,
-  "initialMonths": 12,
-  "terms": [3, 6, 9, 12],
+  "terms": [
+    3,
+    6,
+    9,
+    12
+  ],
   "quotesUrl": null,
   "quotes": [],
   "contact": {
     "whatsapp": null,
     "applicationUrl": null
-  }
+  },
+  "initialWeeks": 12,
+  "installmentFrequency": "weekly"
 }
