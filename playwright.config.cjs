@@ -1,4 +1,4 @@
 const {defineConfig}=require('@playwright/test');
-const sizes=[[320,740],[360,800],[390,844],[412,915],[768,1024],[1024,768],[1280,800],[1440,900],[1920,1080],[2560,1440]];
+const sizes=[[320,740],[360,800],[390,844],[412,915],[640,900],[768,1024],[1024,768],[1280,800],[1440,900],[1920,1080],[2560,1440]];
 const browsers=process.env.TEST_BROWSER?[process.env.TEST_BROWSER]:['chromium','firefox','webkit'];
 module.exports=defineConfig({testDir:'./tests',testMatch:'**/*.spec.cjs',timeout:45000,globalTimeout:10*60*1000,workers:1,retries:0,reporter:[['list'],['html',{open:'never'}],['json',{outputFile:'test-results/results.json'}]],use:{baseURL:'http://127.0.0.1:4173',trace:'retain-on-failure',screenshot:'only-on-failure'},projects:browsers.flatMap(browserName=>sizes.map(([width,height])=>({name:browserName+'-'+width,use:{browserName,viewport:{width,height},hasTouch:width<1100,isMobile:browserName!=='firefox'&&width<700,deviceScaleFactor:1,colorScheme:'light'}}))),webServer:{command:'python3 -m http.server 4173 --bind 127.0.0.1',url:'http://127.0.0.1:4173',reuseExistingServer:false,timeout:30000}});
