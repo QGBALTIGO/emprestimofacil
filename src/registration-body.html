@@ -44,5 +44,15 @@
 <p id="registration-status" class="application-status" role="status" aria-live="polite"></p>
 <div class="application-actions"><button id="registration-previous" class="application-back" type="button" hidden>Voltar</button><button id="registration-next" class="primary-btn" type="submit">Avançar <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button></div>
 </form>
-<div id="registration-receipt" class="application-receipt" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><h3>Solicitação recebida</h3><p>Protocolo: <strong id="registration-protocol"></strong></p><p>Seus dados foram recebidos para análise. O envio não representa aprovação do crédito.</p><button type="button" id="registration-finish" class="application-back">Voltar ao início</button></div>
+<div id="registration-loading" class="application-loading" role="status" aria-live="polite" aria-labelledby="registration-loading-title" hidden><span class="application-spinner" aria-hidden="true"></span><h3 id="registration-loading-title">Enviando seu pré-cadastro</h3><p id="registration-loading-message">Aguarde enquanto confirmamos o recebimento dos seus dados.</p><p class="loading-note">A análise de crédito ocorre após o recebimento.</p></div>
+<div id="registration-receipt" class="application-receipt" hidden>
+<div class="receipt-heading"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg><span id="registration-result-badge">Próxima etapa: análise</span></div>
+<p id="registration-result-message"></p>
+<p id="registration-protocol-row" hidden>Protocolo: <strong id="registration-protocol"></strong></p>
+<div id="registration-result-summary" class="application-review receipt-summary"></div>
+<div class="receipt-next"><h3 id="registration-next-title">O que acontece agora?</h3><p id="registration-next-message"></p></div>
+<p class="receipt-disclaimer">O pré-cadastro não garante aprovação do empréstimo nem o valor solicitado. Uma eventual proposta apresentará o valor disponível, as parcelas semanais, as taxas, os encargos e o CET antes da contratação.</p>
+<div class="receipt-actions"><a id="registration-whatsapp" class="receipt-whatsapp" target="_blank" rel="noopener noreferrer" hidden>Continuar pelo WhatsApp <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></a><button type="button" id="registration-whatsapp-pending" class="receipt-whatsapp" disabled aria-describedby="registration-whatsapp-note">Atendimento pelo WhatsApp</button><button type="button" id="registration-edit" class="application-back" hidden>Editar cadastro</button><button type="button" id="registration-finish" class="application-back">Voltar ao início</button></div>
+<p id="registration-whatsapp-note" class="receipt-contact-note">O contato de atendimento será disponibilizado em breve.</p>
+</div>
 </div></section>
