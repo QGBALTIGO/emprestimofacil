@@ -1,0 +1,41 @@
+name: Qualidade do site
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browsers:
+    name: Testes em ${{ matrix.browser }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Instalar dependências de teste
+        run: npm ci --ignore-scripts
+      - name: Reconstruir e verificar funções
+        run: npm run build && npm run test:unit
+      - name: Instalar o navegador da bateria
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Testar celular, tablet e PC
+        run: npm test
+        env:
+          TEST_BROWSER: ${{ matrix.browser }}
+      - uses: actions/upload-artifact@v5
+        if: ${{ !cancelled() }}
+        with:
+          name: evidencias-${{ matrix.browser }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 30

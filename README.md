@@ -1,32 +1,19 @@
 # Empréstimo Fácil
 
-Página estática com simulador responsivo de empréstimo pessoal. A barra atualiza o valor solicitado, a parcela e o total durante o movimento. Inclui 3, 6, 9 e 12 parcelas, botões de mais e menos, resumo, perguntas frequentes e menu para celular.
+Site responsivo com seleção de valor e prazo, cotação oficial, encaminhamento para atendimento, perguntas frequentes e logos PNG transparentes. Não contém parcelas geradas com juros inventados ou informações institucionais de terceiros.
 
-## Usar
+## Publicar e editar
 
-Abra `index.html` no navegador. As imagens, a logo, os estilos e as fontes estão incorporados; não é necessário instalar dependências ou executar um build para publicar o arquivo. Para hospedagem estática, use a raiz deste repositório como diretório público.
+A raiz contém `index.html` e `assets/`, prontos para hospedagem estática. Depois de editar os arquivos em `src/`, execute `python3 scripts/build-reference.py` para reconstruir a página. O gerador usa somente a biblioteca padrão do Python.
 
-## Editar e reconstruir
+## Dados comerciais necessários
 
-Os arquivos editáveis estão em `src/`; os recursos visuais usados na geração estão em `assets/`. Depois de editar, execute com Python 3:
+Configure `src/business-config.json` com o WhatsApp oficial em formato internacional ou a URL HTTPS da instituição que recebe solicitações. Para exibir valores de parcelas, informe uma tabela oficial em `quotes` ou um endpoint HTTPS em `quotesUrl` que retorne `{ "quotes": [...] }`.
 
-```sh
-python3 scripts/build-reference.py
-```
+Cada cotação requer: `amount_requested`, `installments_requested`, `installment_amount`, `total_amount`, `monthly_rate` e `annual_cet`. Taxa e CET são decimais (por exemplo, 0.02 significa 2%). Pode conter `expires_at` em ISO 8601. Parcela, total e prazo precisam ser coerentes. Não coloque segredos ou credenciais no JSON público.
 
-O comando atualiza `index.html` na raiz. Utiliza somente a biblioteca padrão do Python.
+**Estado atual:** o usuário ainda não forneceu taxas comerciais nem recebedor de propostas. A página mostra que as condições devem ser consultadas e não confirma aprovação ou envio de solicitação. O encaminhamento fica indisponível até que o canal real seja informado. O código não concede crédito, não faz análise bancária e não cria contratos.
 
-## Valores do simulador
+## Testes
 
-- R$ 500 a R$ 3.500, em passos de R$ 250.
-- 3, 6, 9 ou 12 parcelas mensais, totalizando 52 combinações.
-- Cálculo ilustrativo de parcelas fixas pelo sistema Price. O total é a parcela arredondada para centavos multiplicada pelo prazo.
-- Não inclui IOF, tarifas ou o custo efetivo total de uma contratação.
-
-A taxa de referência em `src/reference-capture.json` foi obtida matematicamente para manter o exemplo de R$ 2.000 em 12 parcelas de R$ 367,15. É exibida como 14,88% ao mês e **não é uma taxa comercial confirmada**. O registro em `src/quotes.json` é histórico da referência fornecida, não uma tabela de cotações comerciais.
-
-A página não coleta CPF, senha ou dados bancários, não envia propostas, não aprova crédito e não contrata empréstimos. As condições reais dependem da instituição responsável.
-
-## Verificação
-
-Na versão enviada, foram conferidos os valores e arredondamentos das 52 combinações, a atualização síncrona via eventos `input` e `change`, os limites, os botões, o resumo, a navegação e a integridade dos recursos. A inspeção visual em navegador não estava disponível no ambiente de trabalho.
+`npm ci` instala dependências somente de desenvolvimento. `npm run test:unit` verifica seleção, limites, cotações, expiração, validação e URLs de atendimento. `npm test` executa a suíte Playwright. No GitHub Actions, Chrome, Firefox e WebKit cobrem 10 tamanhos de tela cada, incluindo celular, tablet e PC. As capturas e o relatório ficam nos artefatos da execução. Dispositivos são emulados; isso não é teste em todos os aparelhos físicos.
