@@ -5,10 +5,10 @@ const clean=x=>x.replace(/\u00a0/g,' ');
 test.beforeEach(async({page})=>{await page.goto('/');await page.evaluate(()=>document.fonts.ready);});
 test('layout, fotos, logos transparentes e tema claro',async({page},info)=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await expect(page.locator('h1')).toBeVisible();await expect(page.locator('.hero-lead')).toBeVisible();
+ await expect(page.locator('#hero-title')).toBeVisible();await expect(page.locator('.hero-lead')).toBeVisible();
  if(page.viewportSize().width<700){const intro=await page.locator('.hero-copy').boundingBox(),card=await page.locator('.reference-quote').boundingBox();expect(intro.y+intro.height).toBeLessThanOrEqual(card.y);}
  for(const item of await page.locator('.about-difference').all()){const title=await item.locator('h4').boundingBox(),icon=await item.locator('.about-icon').boundingBox(),copy=await item.locator('p').boundingBox();expect(Math.abs(title.y+title.height/2-icon.y-icon.height/2)).toBeLessThanOrEqual(1);expect(copy.y).toBeGreaterThanOrEqual(icon.y+icon.height);}
- await expect(page.locator('h1')).toHaveText('Seus planos, mais perto.');await expect(page.locator('#about-title')).toHaveText('Quem somos e nossa história');await expect(page.locator('#ajuda h2')).toHaveText('Uma ajuda para seguir com confiança.');
+ await expect(page.locator('#hero-title')).toHaveText('Seus planos, mais perto.');await expect(page.locator('#about-title')).toHaveText('Quem somos e nossa história');await expect(page.locator('#ajuda h2')).toHaveText('Uma ajuda para seguir com confiança.');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
  for(const img of await page.locator('img').all()){if(await img.isVisible())await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate(e=>e.complete&&e.naturalWidth>0)).toBe(true);}
  const alpha=await page.locator('.brand-logo').first().evaluate(img=>{const canvas=document.createElement('canvas');canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;const c=canvas.getContext('2d');c.drawImage(img,0,0);return [c.getImageData(0,0,1,1).data[3],c.getImageData(canvas.width-1,0,1,1).data[3],c.getImageData(0,canvas.height-1,1,1).data[3]];});
