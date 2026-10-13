@@ -56,6 +56,7 @@
   d.getElementById('application-action').addEventListener('click',()=>{const url=buildApplicationUrl(config.contact,amount,months);if(url)window.open(url,'_blank','noopener,noreferrer');});
   for(const dialog of dialogs){
     for(const b of dialog.querySelectorAll('[data-close]'))b.addEventListener('click',()=>dialog.close());
+    dialog.addEventListener('cancel',()=>{if(!dialogs.some(x=>x!==dialog&&x.open))d.body.classList.remove('dialog-open');});
     dialog.addEventListener('close',()=>{if(!dialogs.some(x=>x.open))d.body.classList.remove('dialog-open');requestTrigger?.focus({preventScroll:true});});
     let outside=false;const onBackdrop=e=>{const r=dialog.getBoundingClientRect();return e.target===dialog&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom);};
     dialog.addEventListener('pointerdown',e=>{outside=onBackdrop(e);});dialog.addEventListener('pointercancel',()=>{outside=false;});dialog.addEventListener('click',e=>{if(outside&&onBackdrop(e))dialog.close();outside=false;});
