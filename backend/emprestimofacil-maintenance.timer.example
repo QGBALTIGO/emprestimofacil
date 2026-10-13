@@ -1,0 +1,10 @@
+[Unit]
+Description=Executar retenção e backup diário Empréstimo Fácil
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=emprestimofacil-maintenance.service
+
+[Install]
+WantedBy=timers.target

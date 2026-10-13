@@ -24,5 +24,7 @@
     "daysPerMonth": 30,
     "daysPerWeek": 7
   },
-  "applicationsApiUrl": null
+  "applicationsApiUrl": null,
+  "securityApiUrl": null,
+  "pfApplicationsApiUrl": null
 }

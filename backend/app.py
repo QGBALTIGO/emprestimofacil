@@ -212,7 +212,7 @@ class Store:
     def digest(self, purpose, value):
         return hmac.new(self.key, (purpose + '\0' + value).encode(), hashlib.sha256).hexdigest()
 
-    def save(self, application, request_key):
+    def save(self, application, request_key, attestations=None):
         payload = application.model_dump()
         canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(',', ':'))
         fingerprint = self.digest('request', canonical)
@@ -230,6 +230,8 @@ class Store:
             password_hash = 'scrypt$32768$8$1$' + base64.b64encode(salt).decode() + '$' + base64.b64encode(derived).decode()
             created_at = datetime.now(timezone.utc).isoformat()
             payload['received_at'] = created_at
+            if attestations is not None:
+                payload['server_attestations'] = attestations
             nonce = secrets.token_bytes(12)
             ciphertext = AESGCM(self.key).encrypt(nonce, json.dumps(payload, ensure_ascii=False).encode(), application_id.encode())
             try:
@@ -238,10 +240,12 @@ class Store:
                 raise HTTPException(409, 'Não foi possível receber esta solicitação. Revise os dados.') from None
             return application_id
 
-def create_app(store=None, origin=None, legal_ready=None):
+def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=time.time, retention_days=None, bank_required=None):
     origin = origin or os.getenv('PUBLIC_ORIGIN', '')
     ready = legal_ready if legal_ready is not None else os.getenv('APPLICATIONS_ENABLED', 'false') == 'true'
     limits, lock = {}, threading.Lock()
+    from backend.security import Security
+    security = Security(origin, ready, providers, clock, retention_days, bank_required)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -255,9 +259,12 @@ def create_app(store=None, origin=None, legal_ready=None):
             app.state.store = Store(os.getenv('APPLICATIONS_DB', str(ROOT/'var/applications.sqlite')), key)
         else:
             app.state.store = store
+        security.open(app.state.store)
         yield
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app.state.security = security
+    security.install(app)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request, exc):
@@ -266,7 +273,7 @@ def create_app(store=None, origin=None, legal_ready=None):
     @app.middleware('http')
     async def guard(request: Request, call_next):
         if request.url.path == '/api/applications':
-            if not ready or not origin:
+            if not security.enabled:
                 return JSONResponse({'detail':'Recebimento temporariamente indisponível.'}, status_code=503)
             if request.headers.get('origin') != origin:
                 return JSONResponse({'detail':'Origem não permitida.'}, status_code=403)
@@ -304,12 +311,13 @@ def create_app(store=None, origin=None, legal_ready=None):
             request_key = str(uuid.UUID(request.headers.get('idempotency-key', '')))
         except ValueError:
             raise HTTPException(400, 'Informe uma chave de envio válida.') from None
-        application_id = request.app.state.store.save(application, request_key)
+        application_id = request.app.state.store.save(application, request_key, {'verification_stage':'pending_pf'})
+        security.private.audit('initial_application','application_received',application_id)
         return {'application_id':application_id, 'status':'received'}
 
     @app.get('/api/health')
     def health():
-        return {'status':'ok', 'receiving':bool(ready and origin)}
+        return {'status':'ok', 'receiving':bool(security.enabled)}
 
     @app.get('/')
     def home():

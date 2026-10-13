@@ -1,0 +1,24 @@
+[Unit]
+Description=API Empréstimo Fácil
+After=network-online.target
+
+[Service]
+User=emprestimofacil
+Group=emprestimofacil
+WorkingDirectory=/opt/emprestimofacil
+EnvironmentFile=/etc/emprestimofacil/backend.env
+ExecStart=/opt/emprestimofacil/.venv/bin/uvicorn backend.app:app --host 127.0.0.1 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1 --no-access-log
+Restart=on-failure
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/emprestimofacil
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

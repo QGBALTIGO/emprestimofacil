@@ -8,6 +8,9 @@ test-results/
 
 var/
 .env
+.env.*
+!.env.example
+!.env.production.example
 .venv/
 *.sqlite
 *.sqlite-*

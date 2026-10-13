@@ -24,8 +24,16 @@ class BackendTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.key = secrets.token_bytes(32)
         self.store = Store(Path(self.temp.name)/'private/applications.sqlite', self.key)
-        self.client = TestClient(create_app(self.store, 'https://example.test', True))
+        providers=type('ConfiguredTestProviders',(),{'verify_ready':True,'bank_ready':False,'belvo_host':'production'})()
+        app=create_app(self.store,'https://example.test',True,providers)
+        self.client=TestClient(app,base_url='https://example.test')
         self.client.__enter__()
+        private=app.state.security.private
+        profile={name:payload()['applicant'][name] for name in ['full_name','email','phone','cpf']}
+        token,sid,state=private.new_session(profile)
+        state['verified']={'email':private.clock(),'sms':private.clock()}
+        private.save_session(sid,state,private.clock()+7200)
+        self.client.cookies.set('__Host-ef-session',token,domain='example.test',path='/')
 
     def tearDown(self):
         self.client.__exit__(None,None,None)

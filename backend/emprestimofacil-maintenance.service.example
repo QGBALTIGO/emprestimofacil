@@ -1,0 +1,17 @@
+[Unit]
+Description=Retenção e backup privado Empréstimo Fácil
+
+[Service]
+Type=oneshot
+User=emprestimofacil
+Group=emprestimofacil
+WorkingDirectory=/opt/emprestimofacil
+EnvironmentFile=/etc/emprestimofacil/backend.env
+ExecStart=/opt/emprestimofacil/.venv/bin/python -m backend.maintenance purge
+ExecStart=/opt/emprestimofacil/.venv/bin/python -m backend.maintenance backup --directory /var/backups/emprestimofacil
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/emprestimofacil /var/backups/emprestimofacil
