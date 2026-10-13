@@ -6,6 +6,7 @@ test.beforeEach(async({page})=>{await page.goto('/');await page.evaluate(()=>doc
 test('layout, fotos, logos transparentes e tema claro',async({page},info)=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await expect(page.locator('h1')).toBeVisible();
+ await expect(page.locator('h1')).toHaveText('Seus planos, mais perto.');await expect(page.locator('#quem-somos h2')).toHaveText('Clareza para escolher. Facilidade para seguir.');await expect(page.locator('#ajuda h2')).toHaveText('Uma ajuda para seguir com confiança.');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
  for(const img of await page.locator('img').all()){if(await img.isVisible())await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate(e=>e.complete&&e.naturalWidth>0)).toBe(true);}
  const alpha=await page.locator('.brand-logo').first().evaluate(img=>{const canvas=document.createElement('canvas');canvas.width=img.naturalWidth;canvas.height=img.naturalHeight;const c=canvas.getContext('2d');c.drawImage(img,0,0);return [c.getImageData(0,0,1,1).data[3],c.getImageData(canvas.width-1,0,1,1).data[3],c.getImageData(0,canvas.height-1,1,1).data[3]];});
