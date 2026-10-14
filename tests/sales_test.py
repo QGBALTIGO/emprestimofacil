@@ -198,7 +198,8 @@ class SalesTests(unittest.TestCase):
     def test_provider_budget_refuses_before_creating_an_uncertain_purchase(self):
         self.start();private=self.app.state.security.private
         with self.store.connect() as db:db.execute('INSERT OR REPLACE INTO security_limits VALUES (?,?,?)',(private.digest('limit:cakto-outbound','account'),self.now,49))
-        self.assertEqual(self.buy().status_code,429);self.assertEqual(self.provider.calls,[])
+        for _ in range(3):self.assertEqual(self.buy().status_code,429)
+        self.assertEqual(self.provider.calls,[])
         with self.store.connect() as db:self.assertEqual(db.execute('SELECT count(*) FROM product_sales').fetchone()[0],0)
         self.now+=61;self.assertEqual(self.buy().status_code,200);self.assertEqual(len(self.provider.calls),1)
 

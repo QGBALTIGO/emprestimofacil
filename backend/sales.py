@@ -258,10 +258,10 @@ class Sales:
                 if previous['digest'] != digest or previous['request_id'] != request_id:
                     raise HTTPException(409,'Já existe uma compra nesta sessão. Confira o pagamento existente.')
                 self.reconcile(previous);return self.view(previous)
-            self.private.limit('sales-create',sid,2,3600)
             product_id=self.checked_offer();buyer=purchase.buyer.model_dump()
             # Refuse a full provider budget before recording an in-flight charge.
             self.outbound()
+            self.private.limit('sales-create',sid,2,3600)
             body={'paymentMethod':'pix','customer':{'name':buyer['full_name'],'email':buyer['email'],
                   'phone':'55'+buyer['phone'],'docType':'cpf','docNumber':buyer['cpf'],
                   'fingerprint':'sale_'+secrets.token_hex(16),'ip':ip},
