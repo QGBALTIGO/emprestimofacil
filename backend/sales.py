@@ -6,6 +6,7 @@ import re
 import secrets
 import uuid
 from urllib.parse import urlparse
+from datetime import datetime,timezone
 
 from fastapi import HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
@@ -168,7 +169,7 @@ class Sales:
             expiration = timestamp(pix['expirationDate'])
             if expiration>self.security.clock():
                 result['pix']={'code':pix['qrCode'],'qr_image':qr_image(pix['qrCode']),
-                               'expires_at':pix['expirationDate'],'server_time':self.security.clock()}
+                               'expires_at':datetime.fromtimestamp(expiration,timezone.utc).isoformat(),'server_time':self.security.clock()}
             else:result['pix_expired']=True
         phone=os.getenv('BALTIGO_SUPPORT_WHATSAPP','')
         if row['status']=='paid' and re.fullmatch(r'[1-9]\d{9,14}',phone):

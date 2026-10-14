@@ -33,7 +33,7 @@ class Provider(SalesCakto):
     def create_pix(self,body,request_id):
         self.calls.append((copy.deepcopy(body),request_id))
         if self.fail:raise ProviderUnavailable()
-        identity=str(uuid.uuid4());result={'id':identity,'paymentMethod':'pix','status':'waiting_payment','amount':'7.49','product':{'id':self.product},'offer':{'id':'3bd8an5'},'pix':{'qrCode':'000201'+'synthetic-only-'*8,'expirationDate':datetime.fromtimestamp(self.clock()+900,timezone.utc).isoformat()}}
+        identity=str(uuid.uuid4());result={'id':identity,'paymentMethod':'pix','status':'waiting_payment','amount':'7.49','product':{'id':self.product},'offer':{'id':'3bd8an5'},'pix':{'qrCode':'000201'+'synthetic-only-'*8,'expirationDate':datetime.fromtimestamp(self.clock()+900,timezone.utc).isoformat(sep=' ')}}
         self.orders[identity]={**result,'customer':body['customer'],'sck':request_id}
         return result
     def order(self,identity):
@@ -59,6 +59,7 @@ class SalesTests(unittest.TestCase):
         self.assertFalse(self.app.state.security.enabled)
         result=self.buy();self.assertEqual(result.status_code,200);self.assertEqual(result.json()['amount_cents'],749)
         self.assertTrue(result.json()['pix']['qr_image'].startswith('data:image/png;base64,'))
+        self.assertIn('T',result.json()['pix']['expires_at'])
         body=self.provider.calls[0][0];self.assertEqual(body['items'][0]['offerId'],'3bd8an5');self.assertNotIn('amount',body)
         self.assertEqual(body['metadata']['sck'],self.headers['Idempotency-Key']);self.assertNotIn('birthDate',body['customer'])
         self.assertNotIn('cpf',result.text);self.assertNotIn(BUYER['email'],result.text)
