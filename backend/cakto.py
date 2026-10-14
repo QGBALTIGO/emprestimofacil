@@ -30,6 +30,7 @@ def cents(value):
 
 class Cakto:
     BASE = 'https://api.cakto.com.br/public_api/'
+    TOKEN_SCOPES = frozenset({'read','write','offers','orders','payments'})
 
     def __init__(self,transport=None,clock=time.time):
         self.transport,self.clock = transport,clock
@@ -73,13 +74,16 @@ class Cakto:
         if not self.configured:raise ProviderUnavailable()
         with self._lock:
             if self._expires<=self.clock()+60:
-                token=self.wire('POST','token/',data={'client_id':self.client_id,'client_secret':self.client_secret})
+                token=self.wire('POST','token/',data={'client_id':self.client_id,'client_secret':self.client_secret,
+                    'scope':' '.join(sorted(self.TOKEN_SCOPES))})
                 if (token.get('token_type')!='Bearer' or not isinstance(token.get('access_token'),str)
                         or not 10<=len(token['access_token'])<=10000 or type(token.get('expires_in')) is not int
                         or not 120<=token['expires_in']<=86400 or not isinstance(token.get('scope'),str)):
                     raise ProviderUnavailable()
+                scopes=set(token['scope'].split())
+                if scopes-self.TOKEN_SCOPES:raise ProviderUnavailable()
                 self._token,self._expires = token['access_token'],self.clock()+token['expires_in']
-                self._scopes=set(token['scope'].split())
+                self._scopes=scopes
             if not set(required).issubset(self._scopes):raise ProviderUnavailable()
             return {'Authorization':'Bearer '+self._token}
 

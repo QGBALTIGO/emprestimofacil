@@ -178,7 +178,8 @@ class CaktoWireTests(unittest.TestCase):
         def respond(request):
             calls.append(request)
             if request.url.path.endswith('/token/'):
-                self.assertEqual(parse_qs(request.content.decode()),{'client_id':['synthetic-client'],'client_secret':['synthetic-secret']})
+                self.assertEqual(parse_qs(request.content.decode()),{'client_id':['synthetic-client'],'client_secret':['synthetic-secret'],
+                    'scope':['offers orders payments read write']})
                 return httpx.Response(200,json={'access_token':'synthetic-token-at-least-ten-characters','token_type':'Bearer','expires_in':36000,'scope':'read write orders offers payments'})
             return httpx.Response(201 if request.method=='POST' else 200,json={'id':'synthetic-result'})
         client=Cakto(httpx.MockTransport(respond),lambda:now[0]);client.client_id='synthetic-client';client.client_secret='synthetic-secret';client.webhook_secret='s'*32;client.enabled=client.operation_confirmed=True
@@ -189,6 +190,15 @@ class CaktoWireTests(unittest.TestCase):
         self.assertEqual(cents('200.00'),20000)
         for value in [float('nan'),'-1','1.001',True]:
             with self.assertRaises(ProviderUnavailable):cents(value)
+
+    def test_token_with_unrequested_permissions_is_rejected(self):
+        def respond(request):
+            self.assertNotIn('withdrawals',parse_qs(request.content.decode())['scope'][0])
+            return httpx.Response(200,json={'access_token':'synthetic-token-at-least-ten-characters','token_type':'Bearer',
+                'expires_in':36000,'scope':'read write orders offers payments withdrawals_write'})
+        client=Cakto(httpx.MockTransport(respond));client.client_id='synthetic-client';client.client_secret='synthetic-secret'
+        with self.assertRaises(ProviderUnavailable):client.headers({'read','offers'})
+        self.assertEqual(client._token,'');self.assertEqual(client._scopes,set())
 
 
 if __name__=='__main__':unittest.main()
