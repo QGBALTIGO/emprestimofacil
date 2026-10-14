@@ -22,6 +22,8 @@ COOKIE = '__Host-baltigo-sale'
 PRODUCT_NAME = 'AFILIADOS QG BALTIGO'
 OFFER_ID = '3bd8an5'
 PRICE = 749
+SERVICE_FEE = 99
+TOTAL = PRICE + SERVICE_FEE
 
 
 class Model(BaseModel):
@@ -65,6 +67,19 @@ class SalesCakto(Cakto):
     def can_charge(self):
         return (self.configured and os.getenv('CAKTO_SALES_ENABLED','false') == 'true'
                 and len(self.webhook_secret) >= 16)
+
+    def valid_webhook(self, raw, timestamp, signature):
+        # Both authentication formats are documented by Cakto. A supplied signature
+        # must validate; an invalid or incomplete signature never falls back.
+        if timestamp is not None or signature is not None:
+            return super().valid_webhook(raw,timestamp,signature)
+        if len(self.webhook_secret)<32:return False
+        try:
+            payload=json.loads(raw)
+            received=payload.get('secret') if isinstance(payload,dict) else None
+            return (isinstance(received,str) and len(received)<=256 and
+                    secrets.compare_digest(received.encode('utf-8'),self.webhook_secret.encode('utf-8')))
+        except (ValueError,TypeError,UnicodeError,RecursionError):return False
 
 
 class Sales:
@@ -136,13 +151,20 @@ class Sales:
 
     def validate_order(self, row, order, customer=True):
         data = row['data'];buyer = data['buyer']
-        if (not isinstance(order,dict) or not isinstance(order.get('product'),dict) or not isinstance(order.get('offer'),dict)
+        if (not isinstance(order,dict) or not isinstance(order.get('product'),dict)
                 or not isinstance(order.get('status'),str) or order.get('currency','BRL')!='BRL'):
             raise ProviderUnavailable()
+        # Creation includes the offer; GET orders documents only product/customer/sck.
+        # An omitted offer on GET must still match the fixed base price and all buyer
+        # and request identifiers. A present but different offer always fails.
+        offer=order.get('offer')
+        if offer is None:
+            if not customer or cents(order.get('baseAmount'))!=PRICE:raise ProviderUnavailable()
+        elif not isinstance(offer,dict) or offer.get('id')!=data['offer_id']:
+            raise ProviderUnavailable()
         if (order.get('id') != row['order_id'] or order.get('paymentMethod') != 'pix'
-                or order.get('status') not in STATUSES or cents(order.get('amount')) != PRICE
-                or order.get('product',{}).get('id') != data['product_id']
-                or order.get('offer',{}).get('id') != data['offer_id']):raise ProviderUnavailable()
+                or order.get('status') not in STATUSES or cents(order.get('amount')) != TOTAL
+                or order.get('product',{}).get('id') != data['product_id']):raise ProviderUnavailable()
         if customer:
             person = order.get('customer',{})
             if not isinstance(person,dict) or not isinstance(order.get('metadata',{}),dict):raise ProviderUnavailable()
@@ -157,6 +179,9 @@ class Sales:
         if not row['order_id']:return
         if not force and row['data'].get('checked_at',0)>self.security.clock()-15:return
         self.outbound();order = self.provider.order(row['order_id'])
+        if cents(order.get('amount'))!=TOTAL:
+            row['status']='price_mismatch';row['data']['checked_at']=self.security.clock();self.save(row)
+            return
         self.validate_order(row,order)
         if not row['data'].get('pix') and order.get('pix'):
             pix=order['pix'];qr_image(pix.get('qrCode'))
@@ -168,7 +193,7 @@ class Sales:
     def view(self, row):
         if not row:return {'status':'new'}
         result = {'purchase_id':row['id'],'status':row['status'],'product_name':PRODUCT_NAME,
-                  'amount_cents':PRICE,'buyer_first_name':row['data']['buyer']['full_name'].split()[0]}
+                  'amount_cents':TOTAL,'buyer_first_name':row['data']['buyer']['full_name'].split()[0]}
         pix = row['data'].get('pix')
         if pix and row['status'] in {'waiting_payment','processing','authorized'}:
             expiration = timestamp(pix['expirationDate'])
@@ -210,7 +235,13 @@ class Sales:
                     raise HTTPException(409,'Esta tentativa já está vinculada a outra sessão.') from None
             try:
                 self.outbound();order=self.provider.create_pix(body,request_id)
-                row['order_id']=str(uuid.UUID(order['id']));row['status']='review';self.save(row)
+                row['order_id']=str(uuid.UUID(order['id']));row['status']='review'
+                # Preserve the encrypted provider response for recovery, even when
+                # validation blocks presentation. Never expose unvalidated QR data.
+                row['data']['creation_response']={k:order.get(k) for k in ['product','offer','baseAmount','amount','pix']}
+                self.save(row)
+                if cents(order.get('amount'))!=TOTAL:
+                    row['status']='price_mismatch';self.save(row);return self.view(row)
                 self.validate_order(row,order,False)
                 pix=order.get('pix',{});expiration=timestamp(pix.get('expirationDate'))
                 qr_image(pix.get('qrCode'))
@@ -250,7 +281,7 @@ class Sales:
             return FileResponse(ROOT/'afiliados.html',headers={'Cache-Control':'no-store'})
 
         @app.get('/api/sales/config')
-        def config():return {'available':self.ready,'product_name':PRODUCT_NAME,'amount_cents':PRICE}
+        def config():return {'available':self.ready,'product_name':PRODUCT_NAME,'amount_cents':TOTAL}
 
         @app.post('/api/sales/session')
         def session(request:Request,response:Response):
@@ -283,6 +314,25 @@ class Sales:
                 except ProviderUnavailable:raise HTTPException(503,'Não foi possível confirmar o pagamento. Aguarde e tente novamente.') from None
                 return self.view(row)
 
+        @app.post('/api/sales/restart')
+        def restart(request:Request,response:Response):
+            self.available();sid=self.session(request)
+            self.private.limit('sales-restart',sid,2,3600)
+            with self.private.locked('sale:'+sid):
+                row=self.row(sid)
+                if not row:raise HTTPException(409,'Ainda não existe um Pix expirado nesta sessão.')
+                try:self.reconcile(row,True)
+                except ProviderUnavailable:raise HTTPException(503,'Confira o pagamento antes de iniciar outra compra.') from None
+                if row['status']!='waiting_payment' or not self.view(row).get('pix_expired'):
+                    raise HTTPException(409,'Confira o pagamento existente antes de iniciar outra compra.')
+                token=secrets.token_urlsafe(32);new_sid=self.private.digest('sales-session',token)
+                with self.private.store.connect() as db:
+                    db.execute('UPDATE sales_sessions SET expires=0 WHERE id=?',(sid,))
+                    db.execute('INSERT INTO sales_sessions VALUES (?,?)',(new_sid,self.security.clock()+86400))
+                response.set_cookie(COOKIE,token,max_age=86400,secure=True,httponly=True,samesite='strict',path='/')
+                # An explicit restart opens an empty form. It never sends a payment.
+                return {'status':'new'}
+
         @app.post('/api/sales/cakto/webhook')
         async def webhook(request:Request):
             raw=await request.body()
@@ -295,9 +345,10 @@ class Sales:
                 if envelope.get('event') not in {'pix_gerado','purchase_approved','refund','chargeback','refund_requested','purchase_refused','purchase_canceled'}:
                     return {'status':'ignored'}
                 data=envelope['data']
-                if not isinstance(data,dict) or not isinstance(data.get('metadata',{}),dict) or not isinstance(data.get('sck',''),str):raise ValueError()
+                if not isinstance(data,dict) or not isinstance(data.get('metadata',{}),dict):raise ValueError()
+                if data.get('sck') is not None and not isinstance(data['sck'],str):raise ValueError()
                 order_id=str(uuid.UUID(data['id']))
-            except (ValueError,TypeError,KeyError):raise HTTPException(400,'Evento inválido.') from None
+            except (ValueError,TypeError,KeyError,UnicodeError,RecursionError):raise HTTPException(400,'Evento inválido.') from None
             def receive_event():
                 event=self.private.digest('sales-webhook',hashlib.sha256(raw).hexdigest())
                 reference=data.get('sck') or data.get('metadata',{}).get('sck') or ''

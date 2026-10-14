@@ -9,7 +9,7 @@ from pathlib import Path
 
 from backend.app import Store
 from backend.private_store import PrivateStore
-from backend.sales import Sales, SalesCakto, PRODUCT_NAME, PRICE, OFFER_ID
+from backend.sales import Sales, SalesCakto, PRODUCT_NAME, PRICE, TOTAL, OFFER_ID
 from backend.security import Security
 from backend.cakto import cents
 
@@ -25,7 +25,7 @@ def main():
                    and offer.get('status')=='active' and offer.get('type')=='unique'
                    and offer.get('currency')=='BRL' and cents(offer.get('price'))==PRICE)
             print(json.dumps({'authenticated':connection['authenticated'],'sales_enabled':provider.can_charge,'payment_scopes_ready':connection['can_charge'],
-                              'offer_matches':valid,'product_name':PRODUCT_NAME,'amount_cents':PRICE}))
+                              'offer_matches':valid,'product_name':PRODUCT_NAME,'amount_cents':TOTAL}))
             if not valid or not connection['can_charge']:sys.exit(1)
             return
         identity=str(uuid.UUID(args.purchase));key=base64.b64decode(os.environ['DATA_ENCRYPTION_KEY'],validate=True)
