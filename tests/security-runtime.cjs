@@ -42,7 +42,7 @@ function setup(configured=true){
  const unavailable=setup(false);await tick();assert.equal(unavailable.requests.length,0);assert.equal(unavailable.d.getElementById('pf-sec-email-send').disabled,true);assert.equal(unavailable.w.EmprestimoFacilSecurity.getState().email_verified,false);unavailable.close();
  const env=setup();const {w,d,field,click}=env;await settled(()=>w.EmprestimoFacilSecurity.getState().verificationAvailable);
  assert.deepEqual(Array.from(w.EmprestimoFacilSecurity.validation('reg',0)),[]);
- await assert.rejects(()=>w.EmprestimoFacilSecurity.beforeSend('reg'),/apenas do cadastro PF/);
+ await assert.rejects(()=>w.EmprestimoFacilSecurity.beforeSend('reg'),/apenas do cadastro pessoa física/);
  assert.equal(w.EmprestimoFacilSecurity.validation('pf',0).length,2);
  click('pf-sec-email-send');await settled(()=>d.getElementById('pf-sec-message').textContent.includes('Código enviado'));
  assert.equal(d.getElementById('pf-sec-email-send').disabled,true);field('security_email_code','999999');click('pf-sec-email-check');await settled(()=>d.getElementById('pf-sec-message').textContent.includes('inválido'));assert.equal(w.EmprestimoFacilSecurity.getState().email_verified,false);
