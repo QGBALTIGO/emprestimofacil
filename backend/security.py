@@ -26,8 +26,9 @@ class Security:
     def __init__(self, origin, enabled, providers=None, clock=time.time, retention_days=None, bank_required=None):
         self.origin, self.enabled = origin, enabled
         parsed = urlparse(origin)
-        self.enabled = bool(enabled and parsed.scheme == 'https' and parsed.netloc and not parsed.username
+        self.origin_valid = bool(parsed.scheme == 'https' and parsed.netloc and not parsed.username
                             and not parsed.password and parsed.path in {'','/'} and not parsed.query and not parsed.fragment)
+        self.enabled = bool(enabled and self.origin_valid)
         self.providers = providers or Providers()
         self.clock = clock
         self.retention = int(retention_days if retention_days is not None else os.getenv('DATA_RETENTION_DAYS','30'))
@@ -43,8 +44,13 @@ class Security:
     def can_receive(self):
         return self.enabled and self.providers.verify_ready and (not self.bank_required or self.providers.bank_ready)
 
-    def available(self, bank=False):
-        if not self.enabled or not (self.providers.bank_ready if bank else self.providers.verify_ready):
+    def channel_ready(self, channel):
+        return bool(getattr(self.providers, 'email_ready' if channel == 'email' else 'sms_ready', self.providers.verify_ready))
+
+    def available(self, bank=False, channel=None):
+        ready = self.providers.bank_ready if bank else self.channel_ready(channel) if channel else (
+            self.channel_ready('email') or self.channel_ready('sms'))
+        if not self.enabled or not ready:
             raise HTTPException(503,'Este serviço ainda não está disponível. Tente novamente mais tarde.')
 
     def session(self, request):
@@ -110,14 +116,18 @@ class Security:
         @app.middleware('http')
         async def protect(request: Request, call_next):
             path = request.url.path
-            if path.startswith(('/api/security/','/api/pf/','/api/admin/','/api/installments/')):
+            if path.startswith(('/api/security/','/api/pf/','/api/admin/','/api/installments/','/api/client/')):
                 callback = path.startswith('/api/security/bank/callback/') or path in {'/api/security/bank/webhook','/api/installments/cakto/webhook'}
                 if request.method not in {'GET','HEAD'} and not callback:
-                    if not self.enabled:
+                    if not (self.origin_valid if path.startswith(('/api/admin/','/api/client/')) else self.enabled):
                         return JSONResponse({'detail':'Serviço ainda não disponível.'},status_code=503)
                     if request.headers.get('origin') != self.origin:
                         return JSONResponse({'detail':'Origem não permitida.'},status_code=403)
                 if request.method not in {'GET','HEAD'}:
+                    if path.startswith('/api/pf/') and '/files/' in path and self.private:
+                        import shutil
+                        if shutil.disk_usage(self.private.files_dir).free < self.private.disk_reserve+MAX_FILE*2:
+                            return JSONResponse({'detail':'Armazenamento temporariamente indisponível.'},status_code=507)
                     limit = MAX_FILE if '/files/' in path else 131072 if path=='/api/installments/cakto/webhook' else 24576
                     body = bytearray()
                     async for chunk in request.stream():
@@ -125,7 +135,7 @@ class Security:
                         if len(body) > limit:
                             return JSONResponse({'detail':'Arquivo muito grande.' if '/files/' in path else 'Solicitação muito grande.'},status_code=413)
                     request._body = bytes(body)
-                    if '/files/' not in path and request.headers.get('content-type','').split(';')[0] != 'application/json':
+                    if '/files/' not in path and request.headers.get('content-type','').split(';')[0].strip().lower() != 'application/json':
                         return JSONResponse({'detail':'Use JSON para esta operação.'},status_code=415)
                 if self.private:
                     try:
@@ -145,6 +155,9 @@ class Security:
         @app.get('/api/security/capabilities')
         def capabilities():
             return {'verification':bool(self.enabled and self.providers.verify_ready),
+                    'client_portal':bool(self.origin_valid),
+                    'email_verification':bool(self.enabled and self.channel_ready('email')),
+                    'sms_verification':bool(self.enabled and self.channel_ready('sms')),
                     'open_finance':bool(self.enabled and self.providers.bank_ready),
                     'pf_submission':bool(self.can_receive),'bank_required':bool(self.bank_required),
                     'sandbox':self.providers.belvo_host == 'sandbox','retention_days':self.retention}
@@ -192,6 +205,7 @@ class Security:
 
         @app.post('/api/security/codes/send')
         def send_code(body: CodeRequest, request: Request):
+            self.available(channel=body.channel)
             sid, _, _ = self.session(request)
             with self.private.locked(sid):
                 _, state, expiry = self.session(request)
@@ -205,14 +219,22 @@ class Security:
                 # Remove an old challenge before the provider call, including if delivery fails.
                 state['challenges'].pop(body.channel,None)
                 self.private.save_session(sid,state,expiry)
-                code_sid = self.providers.verification_start(destination,body.channel)
-                state['challenges'][body.channel] = {'sid':code_sid,'expires':self.clock()+600,'attempts':0}
+                if body.channel == 'email' and getattr(self.providers, 'email_provider', '') == 'resend':
+                    code = str(secrets.randbelow(1000000)).zfill(6)
+                    delivery_id = str(uuid.uuid4())
+                    code_sid = self.providers.email_code(destination, code, delivery_id)
+                    challenge = {'sid':code_sid, 'provider':'resend', 'salt':delivery_id,
+                                 'digest':self.private.digest('email-code',sid+':'+delivery_id+':'+code)}
+                else:
+                    challenge = {'sid':self.providers.verification_start(destination,body.channel), 'provider':'twilio'}
+                state['challenges'][body.channel] = {**challenge,'expires':self.clock()+600,'attempts':0}
                 self.private.save_session(sid,state,expiry)
                 self.private.audit(sid,'code_sent_'+body.channel)
                 return {'status':'sent','expires_in':600,'retry_after':60}
 
         @app.post('/api/security/codes/check')
         def check_code(body: CodeCheck, request: Request):
+            self.available(channel=body.channel)
             sid, _, _ = self.session(request)
             with self.private.locked(sid):
                 _, state, expiry = self.session(request)
@@ -222,7 +244,12 @@ class Security:
                 challenge['attempts'] += 1
                 self.private.save_session(sid,state,expiry)
                 destination = state['profile']['email'] if body.channel == 'email' else '+55'+state['profile']['phone']
-                if not self.providers.verification_check(challenge['sid'],body.code,destination,body.channel):
+                if challenge.get('provider') == 'resend':
+                    valid = hmac.compare_digest(challenge['digest'], self.private.digest(
+                        'email-code',sid+':'+challenge['salt']+':'+body.code))
+                else:
+                    valid = self.providers.verification_check(challenge['sid'],body.code,destination,body.channel)
+                if not valid:
                     raise HTTPException(422,'Código incorreto ou expirado. Confira o código recebido.')
                 state['verified'][body.channel] = self.clock()
                 del state['challenges'][body.channel]

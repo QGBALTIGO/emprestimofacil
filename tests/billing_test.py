@@ -165,6 +165,8 @@ class BillingTests(unittest.TestCase):
         self.assertEqual(login.status_code,200)
         self.assertTrue(self.client.get('/api/admin/cakto/status').json()['authenticated'])
         listing=self.client.get('/api/admin/installments').json()['installments'];self.assertEqual(len(listing),3)
+        paged=self.client.get('/api/admin/installments?page=2&page_size=2').json()
+        self.assertEqual(paged['total'],3);self.assertEqual(paged['total_pages'],2);self.assertEqual(len(paged['installments']),1)
         link=self.client.post('/api/admin/installments/'+self.identity+'/link',json={},headers=self.headers)
         self.assertEqual(link.status_code,200);self.assertTrue(link.json()['url'].startswith('https://example.test/pagar#'))
         self.assertNotIn('11144477735',link.text)

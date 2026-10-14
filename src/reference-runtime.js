@@ -7,6 +7,9 @@
   const annualInterest = rate => Math.expm1(12*Math.log1p(rate));
   const rateRange = (annual=false) => [config.monthlyRateMin,config.monthlyRateMax].map(rate=>percent(annual?annualInterest(rate):rate)).join(' a ');
   const dialogs = [...d.querySelectorAll('dialog')];
+  let customerAreaAvailable=false;
+  try{const endpoint=new URL(config.applicationsApiUrl,location.href);customerAreaAvailable=Boolean(config.applicationsApiUrl)&&endpoint.origin===location.origin&&!endpoint.username&&!endpoint.password&&(endpoint.protocol==='https:'||['localhost','127.0.0.1'].includes(endpoint.hostname));}catch{}
+  for(const link of d.querySelectorAll('[data-customer-area]'))link.hidden=!customerAreaAvailable;
   let amount=config.initialAmount,weeks=config.initialWeeks,quotes=[],quoteStatus='unavailable',requestTrigger;
   function normalizeQuotes(data) {
     const rows=Array.isArray(data)?data:data?.quotes;
@@ -56,7 +59,7 @@
     setText('application-status','Continue para preencher seu cadastro. A aprovação depende de análise de crédito.');
   }
   function render(){
-    range.value=String(amount);range.style.setProperty('--range-progress',(amount-config.minAmount)/(config.maxAmount-config.minAmount)*100+'%');range.setAttribute('aria-valuetext',money.format(amount));setText('quote-amount-display','R$ '+amount);
+    range.value=String(amount);range.style.setProperty('--range-progress',(amount-config.minAmount)/(config.maxAmount-config.minAmount)*100+'%');range.setAttribute('aria-valuetext',money.format(amount));setText('quote-amount-display',money.format(amount));
     positionAmountBubble();
     for(const radio of form.querySelectorAll('[name="weeks"]'))radio.checked=Number(radio.value)===weeks;
     for(const button of form.querySelectorAll('[data-amount-adjust]'))button.disabled=Number(button.dataset.amountAdjust)<0?amount===config.minAmount:amount===config.maxAmount;
@@ -91,7 +94,7 @@
     dialog.addEventListener('pointerdown',e=>{outside=onBackdrop(e);});dialog.addEventListener('pointercancel',()=>{outside=false;});dialog.addEventListener('click',e=>{if(outside&&onBackdrop(e))dialog.close();outside=false;});
   }
   for(const button of d.querySelectorAll('[data-info]'))button.addEventListener('click',()=>{
-    const privacy=button.dataset.info==='privacy';setText('info-title',privacy?'Sua privacidade':'Condições de contratação');setText('info-message',privacy?'Ao continuar a solicitação, o cadastro pede seus dados pessoais. Essas informações não são guardadas no armazenamento do navegador. Sem o serviço de envio habilitado, os dados não são transmitidos. Consulte a Política de Privacidade apresentada no cadastro antes de continuar.':'O crédito está sujeito à análise. Antes de contratar, confira a instituição responsável, a taxa de juros, os impostos, as tarifas, o total a pagar e o custo efetivo total (CET). Nunca pague uma taxa antecipada para liberar empréstimo.');openDialog(d.getElementById('info-dialog'),button);
+    const privacy=button.dataset.info==='privacy';setText('info-title',privacy?'Sua privacidade':'Condições de contratação');setText('info-message',privacy?'Os dados informados são usados para conferir o cadastro e analisar sua solicitação. Consulte as finalidades e autorizações apresentadas no cadastro antes de enviar. Câmera, localização e conexão bancária dependem da sua autorização.':'O crédito está sujeito à análise. Antes de contratar, confira a instituição responsável, a taxa de juros, os impostos, as tarifas, o total a pagar e o custo efetivo total (CET). Nunca pague uma taxa antecipada para liberar empréstimo.');openDialog(d.getElementById('info-dialog'),button);
   });
   const nav=d.getElementById('site-header--mobile-nav'),toggle=nav.querySelector('.mobile-nav--toggle'),navContent=d.getElementById('main-navigation'),desktop=window.matchMedia('(min-width: 900px)');
   function closeMenu(focus){nav.classList.remove('active');toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','Abrir menu');navContent.inert=!desktop.matches;if(focus)toggle.focus();}

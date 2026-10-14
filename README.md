@@ -23,7 +23,7 @@ A referência pública usa ofertas pré-calculadas recebidas do servidor (`/quot
 
 ## Cadastro PF complementar
 
-A aba `#cadastro-pf` está no menu e no botão “Completar cadastro PF” da tela final do pré-cadastro. Tem seis etapas: validação, dados, titular, documentos, contatos e revisão. O botão do pré-cadastro reaproveita apenas dados necessários e nunca a senha. O cadastro inicial continua independente.
+O cadastro complementar `#cadastro-pf` é acessado pelo botão “Completar cadastro PF” da tela final do pré-cadastro. Tem seis etapas: validação, dados, titular, documentos, contatos e revisão. O botão do pré-cadastro reaproveita apenas dados necessários e nunca a senha. O cadastro inicial continua independente.
 
 O cadastro PF inclui confirmação de e-mail e celular por códigos de seis dígitos, conexão Open Finance por consentimento e envio privado de dados e documentos. Estes recursos usam a API preparada para a VPS, Twilio Verify e Belvo OFDA; exigem configuração dos provedores e não estão ativos no site estático. A confirmação dos contatos e o Open Finance aparecem **somente no cadastro PF**. O pré-cadastro original mantém suas cinco etapas e não exige esses códigos. Não há abertura de conta, OCR, prova de vida nem decisão automática de crédito.
 
@@ -55,6 +55,8 @@ As cobranças dependem de contrato existente, assinado e com crédito desembolsa
 
 O valor vem do contrato e da oferta conferida no servidor, em BRL; o navegador não escolhe o preço. A baixa exige pedido da Cakto com CPF, e-mail, referência, produto e valor correspondentes, estado `paid` e data de pagamento. Webhooks são verificados com HMAC e prazo, e a consulta da API confirma o estado. Uma tentativa de geração sem resultado confirmado bloqueia a criação de outra cobrança até a conciliação. Reembolso e chargeback atualizam o estado; o sistema não executa devolução ou saque automaticamente. Consulte [operação da Cakto](backend/CAKTO.md).
 
-### Acesso ao teste Cakto no PF
+### Administração e implantação
 
-A primeira etapa do PF mostra o cartão **Pix — Cakto** e o botão **Abrir teste Pix**. O botão abre o estado de configuração do teste administrativo. O backend, o acesso de staging e a oferta de teste ainda não estão configurados, portanto este acesso não gera QR Code nem cobrança e não consulta a Cakto. O diálogo pode ser fechado por botão ou Escape e não interfere no preenchimento ou na aprovação do cadastro. Não é uma etapa obrigatória nem uma cobrança antecipada.
+O cadastro público não mostra testes administrativos da Cakto. O painel privado `/admin` concentra cadastros com paginação e filtros, revisão manual, notas internas, situação dos provedores e parcelas. A área `/cliente` permite acompanhar um protocolo específico com e-mail e senha, sem correlacionar documentos por um CPF alegado. Consulte `backend/README.md` para convite de administrador com senha e autenticador, e-mail Resend e limites de armazenamento.
+
+Nesta revisão, os textos institucionais foram preservados a pedido do responsável. As afirmações de fundação em 2014, vínculo com a Enova, estatísticas e autorizações não foram comprovadas pela revisão técnica. A implantação não constitui autorização para operar crédito. O recebimento e os provedores devem permanecer desabilitados enquanto faltam identificação, termos e configuração da operação.

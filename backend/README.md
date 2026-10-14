@@ -46,11 +46,11 @@ Após gravar e confirmar a transação, responde `201`:
 {"application_id":"UUID do protocolo","status":"received"}
 ```
 
-Somente essa resposta válida libera a tela de protocolo. Falha, timeout, JSON inesperado ou serviço ausente não exibem sucesso. Repetir o mesmo UUID com o mesmo conteúdo devolve o protocolo existente; mudar o conteúdo com o UUID anterior retorna 409. CPF e e-mail duplicados também retornam uma mensagem genérica com 409. Erros de validação retornam 422 sem reproduzir os dados enviados. O corpo tem limite de 16 KiB; há limite de 10 tentativas por IP em 10 minutos por processo, e recebimentos indisponíveis retornam 503. Para múltiplos workers ou maior volume, substitua SQLite e o limite em memória por armazenamento compartilhado antes de escalar.
+Somente essa resposta válida libera a tela de protocolo. Falha, timeout, JSON inesperado ou serviço ausente não exibem sucesso. Repetir o mesmo UUID com o mesmo conteúdo devolve o protocolo existente; mudar o conteúdo com o UUID anterior retorna 409. CPF e e-mail não são reservados por um pré-cadastro sem confirmação: solicitações distintas podem usar os mesmos dados de identidade. Apenas a chave idempotente é única. A atualização migra bancos legados em uma transação, preservando registros e removendo os índices únicos de CPF/e-mail. Erros de validação retornam 422 sem reproduzir os dados enviados. O corpo tem limite de 16 KiB; há limite de 10 tentativas por IP em 10 minutos por processo, e recebimentos indisponíveis retornam 503. Para múltiplos workers ou maior volume, substitua SQLite e o limite em memória por armazenamento compartilhado antes de escalar.
 
 As senhas recebem scrypt com salt aleatório; os dados pessoais, renda, conta e autorizações são criptografados com AES-256-GCM, nonce aleatório e vínculo ao protocolo. Os índices de CPF/e-mail e o resumo do pedido usam HMAC. O banco não guarda a senha original, confirmações de senha/e-mail nem PII em texto puro. O horário de recebimento e a versão dos consentimentos são registrados no servidor. Não há emissão automática de aprovação ou contrato. O painel `/admin` exige senha e TOTP, conforme descrito abaixo.
 
-`GET /api/health` informa a disponibilidade do processo e se o recebimento foi habilitado. Faça backup do banco e da chave separadamente e aplique à operação uma política definida de acesso e retenção. A API recebe solicitações. A confirmação de e-mail/celular e a conexão Open Finance estão preparadas por meio dos provedores abaixo e precisam ser ativadas. Não há login de cliente, decisão de crédito ou assinatura contratual. O pré-cadastro original conserva suas cinco etapas e não exige códigos nem conexão bancária; estes recursos aparecem **apenas no cadastro PF**.
+`GET /api/health` informa a disponibilidade do processo e se o recebimento foi habilitado. Faça backup do banco e da chave separadamente e aplique à operação uma política definida de acesso e retenção. A API recebe solicitações. A confirmação de e-mail/celular e a conexão Open Finance estão preparadas por meio dos provedores abaixo e precisam ser ativadas. A área `/cliente` permite acompanhar o pré-cadastro usando protocolo, e-mail e senha; não há decisão de crédito ou assinatura contratual. O pré-cadastro original conserva suas cinco etapas e não exige códigos nem conexão bancária; estes recursos aparecem **apenas no cadastro PF**.
 
 ## Verificação
 
@@ -126,3 +126,38 @@ A integração de parcelas com a Cakto possui configuração, contrato, credenci
 ## Compra independente de afiliados
 
 A página `/afiliados.html` e os endpoints `/api/sales/` vendem o produto **AFILIADOS QG BALTIGO**, por R$ 7,49. Leia [CAKTO_SALES.md](CAKTO_SALES.md) para a ativação via ambiente da VPS. Esta compra não interfere nos cadastros ou na análise de empréstimos.
+
+
+## Revisão de 14/10/2026 — painel, área do cliente e e-mail
+
+A área `/cliente` exige **protocolo + e-mail + senha do pré-cadastro** e abre apenas aquele registro. A senha continua scrypt; o cookie `__Host-ef-client` é opaco, HttpOnly, Secure e SameSite=Strict, com validade de 30 minutos. Há limite de tentativas por IP/e-mail, resposta genérica para credenciais incorretas, bloqueio de outra origem e invalidação de sessões ao restaurar backup. O resumo contém primeiro nome, CPF mascarado, valor, parcelamento e andamento; não devolve documentos, dados bancários ou notas internas. Cadastros PF não são ligados a contas por coincidência de CPF/e-mail não comprovados. Não foi implementada recuperação de senha por um contato ainda não confirmado.
+
+O painel `/admin` funciona com origem HTTPS válida e banco privado mesmo quando `APPLICATIONS_ENABLED=false`, para que a equipe confira as pendências antes de abrir o recebimento. Tem filtros por tipo/situação/protocolo, paginação real de 25 registros e contagem total, visão das integrações e registro de andamento com mensagem para o titular e nota interna criptografada. Os estados são recebido, em análise, complemento solicitado e encerrado; nenhum aprova crédito, cria contrato, desembolsa ou gera cobrança. Configurado é diferente de homologado: o painel não afirma entrega de e-mail/SMS ou conexão bancária apenas porque existem credenciais.
+
+Para o administrador indicado `kaykys468@gmail.com`, o operador da VPS pode gerar um convite único para o usuário escolher sua própria senha e cadastrar o autenticador:
+
+```bash
+.venv/bin/python -m backend.maintenance admin-invite --username kaykys468@gmail.com --invite-file /root/emprestimofacil-private/admin-setup-link.txt
+```
+
+Carregue previamente o ambiente privado do serviço. O link é gravado somente no arquivo escolhido, em pasta 0700/arquivo 0600, e nunca impresso pelo comando. Use uma pasta privada fora da árvore web, não envie a senha/segredo por chat e não publique o arquivo em Library, Git, logs ou backups públicos. O convite expira em 30 minutos; gerar outro revoga o anterior. O usuário abre o link por HTTPS, adiciona a chave ao seu autenticador, escolhe uma senha de 12–128 caracteres e confirma um código válido. Só então a conta é criada e o convite consumido. O fragmento do link é retirado do endereço imediatamente e não vai ao servidor em pedidos de página. A chave temporária nunca fica em armazenamento persistente do navegador. Aguarde o próximo código para o primeiro login, pois o código usado na criação não pode ser repetido. O comando `admin-create` no terminal privado continua disponível.
+
+### Resend opcional
+
+O envio de códigos por e-mail pode usar Resend com um domínio/remetente verificado pelo próprio operador:
+
+```text
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=<chave privada do Resend>
+EMAIL_FROM=contato@dominio-verificado.example
+```
+
+`EMAIL_PROVIDER=twilio` preserva a integração anterior. O remetente de testes `@resend.dev` é recusado para não aparentar um serviço público pronto. A API Resend recebe somente destinatário e texto do código; CPF, documentos e dados bancários não são enviados. O servidor gera o código criptograficamente, guarda somente HMAC com salt dentro da sessão criptografada, limita reenvio/tentativas e expira em 10 minutos. O código não aparece em resposta da API, relatório ou URL. Uma falha do provedor não cria desafio válido nem mostra envio confirmado. Códigos consumidos não podem ser repetidos. Referência: [Send Email](https://resend.com/docs/api-reference/emails/send-email) e [idempotência](https://resend.com/docs/dashboard/emails/idempotency-keys).
+
+As capabilities agora distinguem `email_verification`, `sms_verification` e `client_portal`. `verification` continua significando ambos os canais disponíveis. Com Resend sozinho, a sessão e a confirmação de e-mail funcionam; SMS e envio PF continuam bloqueados até configurar e homologar o serviço SMS. Nenhuma conta externa é criada automaticamente e a configuração não comprova que o provedor aceitou a operação. O endpoint não apresenta um sandbox fictício.
+
+### Limites de armazenamento PF
+
+O titular com contato confirmado tem no máximo um cadastro documental incompleto simultâneo e três novos cadastros por período de 24 horas. Repetir a mesma chave idempotente retoma o registro e não consome outra vaga. O limite é associado a cada contato confirmado (HMAC de e-mail e de celular), inclusive entre sessões e mudanças de CPF. Reusar qualquer um desses contatos preserva o orçamento de envio. Os padrões `PF_DAILY_LIMIT=3`, `MAX_PRIVATE_STORAGE_MB=1024` e `MIN_FREE_DISK_MB=256` restringem quantidade, volume privado ativo e reserva de disco. Os arquivos são gravados sob uma trava global para impedir ultrapassar a quota em uploads simultâneos. Falta de armazenamento retorna 507 com mensagem genérica; excesso diário retorna 429 e cadastro incompleto duplicado retorna 409. Os limites são preventivos e não substituem monitoramento da VPS, retenção ou capacidade reservada para seus outros serviços.
+
+Todos os testes de códigos, pagamentos e Open Finance continuam usando provedores substituídos. A suíte cobre portal e isolamento por protocolo, migração de banco, paginação acima de 100 registros, notas criptografadas, convite único/expiração/origem, e-mail Resend/erro/replay e quotas PF. Homologação real depende de contas, domínio, entrega dos códigos, autorização da operação e dispositivos físicos por HTTPS.

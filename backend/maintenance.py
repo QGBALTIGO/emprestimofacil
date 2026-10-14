@@ -5,11 +5,13 @@ import getpass
 import hmac
 import json
 import os
+import secrets
 import shutil
 import sqlite3
 import time
 import uuid
 from datetime import datetime, timezone
+from contextlib import closing
 from pathlib import Path
 
 import pyotp
@@ -42,11 +44,11 @@ def backup(private, destination):
         work.mkdir(mode=0o700)
         try:
             db_path = work/'applications.sqlite'
-            with private.store.connect() as source, sqlite3.connect(db_path) as target:
+            with private.store.connect() as source, closing(sqlite3.connect(db_path)) as target:
                 source.backup(target)
             os.chmod(db_path,0o600)
             files = work/'documents';files.mkdir(mode=0o700)
-            with sqlite3.connect(db_path) as db:
+            with closing(sqlite3.connect(db_path)) as db:
                 identities = [r[0] for r in db.execute('SELECT id FROM private_files')]
             for identity in identities:
                 target = files/(identity+'.enc')
@@ -66,7 +68,7 @@ def backup(private, destination):
 def restore(private, source):
     """Restore to a new destination only; the service must be stopped by the operator."""
     source = Path(source)
-    with sqlite3.connect(source/'applications.sqlite') as db:
+    with closing(sqlite3.connect(source/'applications.sqlite')) as db:
         if db.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
             raise ValueError('Backup inválido.')
         rows = db.execute('SELECT id,record_id,kind FROM private_files').fetchall()
@@ -79,9 +81,12 @@ def restore(private, source):
                 'SELECT '+identity_column+','+data_column+' FROM '+table))
         applications = db.execute('SELECT application_id,nonce,ciphertext FROM applications').fetchall()
         existing={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        for table,prefix in [('billing_contracts','contract:'),('billing_attempts','payment:'),('product_sales','sale:')]:
+        for table,prefix in [('billing_contracts','contract:'),('billing_attempts','payment:'),('product_sales','sale:'),('admin_bootstrap','bootstrap:')]:
             if table in existing:
                 encrypted.extend((prefix+identity,content) for identity,content in db.execute('SELECT id,payload FROM '+table))
+        if 'application_reviews' in existing:
+            encrypted.extend(('review:'+kind+':'+identity,content) for kind,identity,content in
+                             db.execute('SELECT kind,identity,payload FROM application_reviews'))
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     for purpose,content in encrypted:
         private.unseal(purpose,content)
@@ -116,7 +121,7 @@ def restore(private, source):
             db.execute('INSERT OR IGNORE INTO provider_deletions VALUES (?,?)',(link,private.clock()))
         db.execute('DELETE FROM secure_sessions');db.execute('DELETE FROM admin_sessions')
         db.execute('DELETE FROM bank_attempts')
-        for table in ['billing_sessions','billing_links','sales_sessions']:
+        for table in ['billing_sessions','billing_links','sales_sessions','client_sessions','admin_bootstrap']:
             if table in existing:db.execute('DELETE FROM '+table)
 
 
@@ -152,6 +157,32 @@ def create_administrator(private,username,password,secret):
     private.audit(private.digest('admin-actor',username),'admin_created')
 
 
+def administrator_invite(private, username, origin, destination):
+    """Write the bearer invite to a private operator file; never print its token."""
+    from urllib.parse import urlparse
+    parsed=urlparse(origin)
+    username=username.strip().lower()
+    if not 3<=len(username)<=80 or parsed.scheme!='https' or not parsed.netloc or parsed.path not in {'','/'} or parsed.query or parsed.fragment or parsed.username:
+        raise ValueError('Informe usuário e origem HTTPS válidos.')
+    target=Path(destination)
+    target.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+    os.chmod(target.parent,0o700)
+    token=secrets.token_urlsafe(32);key=private.digest('admin-bootstrap',token)
+    with private.store.connect() as db:
+        if db.execute('SELECT 1 FROM administrators WHERE username=?',(username,)).fetchone():
+            raise ValueError('Administrador já cadastrado.')
+        db.execute('DELETE FROM admin_bootstrap WHERE username=?',(username,))
+        db.execute('INSERT INTO admin_bootstrap VALUES (?,?,?,?)',
+                   (key,username,private.clock()+1800,private.seal('bootstrap:'+key,{'secret':pyotp.random_base32()})))
+    # The directory must be outside every publicly served path. The CLI creates
+    # the file privately, and the caller chooses its private operator directory.
+    with open(target,'w',encoding='utf-8') as out:
+        os.chmod(target,0o600)
+        out.write(origin.rstrip('/')+'/admin#setup='+token+'\n')
+    private.audit(private.digest('admin-actor',username),'admin_invited')
+    return target
+
+
 def audit_valid(private):
     previous = ''
     with private.store.connect() as db:
@@ -166,11 +197,18 @@ def audit_valid(private):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('command',choices=['admin-create','purge','backup','restore','audit-check'])
+    parser.add_argument('command',choices=['admin-create','admin-invite','purge','backup','restore','audit-check'])
     parser.add_argument('--directory')
+    parser.add_argument('--username')
+    parser.add_argument('--invite-file')
     args = parser.parse_args()
     private = configured_store()
-    if args.command == 'admin-create':
+    if args.command == 'admin-invite':
+        if not args.username or not args.invite_file:
+            raise SystemExit('Informe --username e --invite-file em diretório privado fora da pasta pública.')
+        path=administrator_invite(private,args.username,os.getenv('PUBLIC_ORIGIN',''),args.invite_file)
+        print('Convite único de 30 minutos salvo no arquivo privado: '+str(path))
+    elif args.command == 'admin-create':
         username = input('Usuário da equipe: ').strip()
         password = getpass.getpass('Senha (mínimo 12 caracteres): ')
         if password != getpass.getpass('Confirme a senha: '):

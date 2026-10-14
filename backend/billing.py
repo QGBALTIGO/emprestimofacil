@@ -4,7 +4,7 @@ import json
 import uuid
 from datetime import datetime,timezone
 
-from fastapi import HTTPException,Request,Response
+from fastapi import HTTPException,Request,Response,Query
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
@@ -207,12 +207,16 @@ class Billing:
             return {'configured':True,**result}
 
         @app.get('/api/admin/installments')
-        def listing(request:Request):
+        def listing(request:Request,page:int=Query(1,ge=1,le=100000),page_size:int=Query(25,ge=1,le=100)):
             _,actor=app.state.require_admin(request)
             with self.store.store.connect() as db:
-                ids=[r[0] for r in db.execute('SELECT i.id FROM billing_installments i JOIN billing_contracts c ON c.id=i.contract_id WHERE c.expires>? ORDER BY c.created DESC,i.number LIMIT 100',(self.security.clock(),))]
+                base='FROM billing_installments i JOIN billing_contracts c ON c.id=i.contract_id WHERE c.expires>?'
+                total=db.execute('SELECT count(*) '+base,(self.security.clock(),)).fetchone()[0]
+                ids=[r[0] for r in db.execute('SELECT i.id '+base+' ORDER BY c.created DESC,c.id DESC,i.number LIMIT ? OFFSET ?',
+                                              (self.security.clock(),page_size,(page-1)*page_size))]
             self.security.private.audit(actor,'installments_listed')
-            return {'installments':[{k:v for k,v in self.view(identity).items() if k not in {'pix','can_generate'}} for identity in ids]}
+            return {'installments':[{k:v for k,v in self.view(identity).items() if k not in {'pix','can_generate'}} for identity in ids],
+                    'page':page,'page_size':page_size,'total':total,'total_pages':max(1,(total+page_size-1)//page_size)}
 
         @app.post('/api/admin/installments/{identity}/link')
         def link(identity:str,request:Request):

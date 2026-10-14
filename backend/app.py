@@ -195,9 +195,24 @@ class Store:
         with self.connect() as db:
             db.execute('''CREATE TABLE IF NOT EXISTS applications (
                 application_id TEXT PRIMARY KEY, request_key TEXT UNIQUE NOT NULL,
-                request_digest TEXT NOT NULL, cpf_digest TEXT UNIQUE NOT NULL,
-                email_digest TEXT UNIQUE NOT NULL, nonce BLOB NOT NULL, ciphertext BLOB NOT NULL,
+                request_digest TEXT NOT NULL, cpf_digest TEXT NOT NULL,
+                email_digest TEXT NOT NULL, nonce BLOB NOT NULL, ciphertext BLOB NOT NULL,
                 password_hash TEXT NOT NULL, created_at TEXT NOT NULL)''')
+            # A pre-registration has not proved ownership of an identity. Only the
+            # request key is unique, so another person's unverified submission
+            # cannot reserve a CPF/e-mail and block its rightful owner.
+            schema = db.execute("SELECT sql FROM sqlite_master WHERE name='applications'").fetchone()[0]
+            if re.search(r'(?:cpf_digest|email_digest)\s+TEXT\s+UNIQUE',schema,re.I):
+                db.execute('BEGIN IMMEDIATE')
+                db.execute('ALTER TABLE applications RENAME TO applications_unverified_legacy')
+                db.execute('''CREATE TABLE applications (
+                    application_id TEXT PRIMARY KEY, request_key TEXT UNIQUE NOT NULL,
+                    request_digest TEXT NOT NULL, cpf_digest TEXT NOT NULL, email_digest TEXT NOT NULL,
+                    nonce BLOB NOT NULL, ciphertext BLOB NOT NULL, password_hash TEXT NOT NULL, created_at TEXT NOT NULL)''')
+                db.execute('INSERT INTO applications SELECT * FROM applications_unverified_legacy')
+                db.execute('DROP TABLE applications_unverified_legacy')
+            db.execute('CREATE INDEX IF NOT EXISTS applications_email ON applications(email_digest)')
+            db.execute('CREATE INDEX IF NOT EXISTS applications_created ON applications(created_at)')
         os.chmod(self.path, 0o600)
 
     @contextmanager
@@ -273,6 +288,8 @@ def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=
     app.state.billing = billing
     app.state.sales = sales
     security.install(app)
+    from backend.client import install_client
+    install_client(app,security)
     billing.install(app)
     sales.install(app)
 

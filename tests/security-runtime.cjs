@@ -2,7 +2,7 @@
 const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM,VirtualConsole}=require('jsdom');
 const tick=()=>new Promise(resolve=>setTimeout(resolve,5));
 async function settled(predicate){for(let i=0;i<100;i++){if(predicate())return;await tick();}assert.fail('Async operation did not settle');}
-function setup(configured=true){
+function setup(configured=true,capabilityOverrides={}){
  const errors=[],requests=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));
  const config={securityApiUrl:configured?'/api/security':null,pfApplicationsApiUrl:configured?'/api/pf/applications':null};
  const html='<script id="business-config" type="application/json">'+JSON.stringify(config)+'</script>'+fs.readFileSync('src/pf-body.html','utf8');
@@ -14,7 +14,7 @@ function setup(configured=true){
  w.fetch=async(url,options={})=>{
   const path=new URL(url).pathname;requests.push({path,options});const body=options.body&&typeof options.body==='string'?JSON.parse(options.body):{};
   let result,status=200;
-  if(path.endsWith('/capabilities'))result={verification:true,open_finance:true,pf_submission:true,bank_required:bankRequired,sandbox:true};
+  if(path.endsWith('/capabilities'))result={verification:true,open_finance:true,pf_submission:true,bank_required:bankRequired,sandbox:true,...capabilityOverrides};
   else if(path==='/api/security/session'){
    if(lastProfile&&(lastProfile.email!==body.email||lastProfile.phone!==body.phone))state={email_verified:false,phone_verified:false,bank_status:'not_connected',cpf_match:false};
    lastProfile=body;result={...state};
@@ -40,6 +40,7 @@ function setup(configured=true){
 }
 (async()=>{
  const unavailable=setup(false);await tick();assert.equal(unavailable.requests.length,0);assert.equal(unavailable.d.getElementById('pf-sec-email-send').disabled,true);assert.equal(unavailable.w.EmprestimoFacilSecurity.getState().email_verified,false);unavailable.close();
+ const partial=setup(true,{verification:false,email_verification:true,sms_verification:false,pf_submission:false});await settled(()=>partial.w.EmprestimoFacilSecurity.getState().emailVerificationAvailable);assert.equal(partial.d.getElementById('pf-sec-email-send').disabled,false);assert.equal(partial.d.getElementById('pf-sec-sms-send').disabled,true);assert.equal(partial.d.getElementById('pf-sec-sms-code').disabled,true);assert.equal(partial.d.getElementById('pf-sec-phone-state').textContent,'SMS indisponível');assert.match(partial.w.EmprestimoFacilSecurity.validation('pf',0)[1].message,/SMS está indisponível/);assert.equal(partial.w.EmprestimoFacilSecurity.getState().submissionAvailable,false);partial.close();
  const env=setup();const {w,d,field,click}=env;await settled(()=>w.EmprestimoFacilSecurity.getState().verificationAvailable);
  assert.deepEqual(Array.from(w.EmprestimoFacilSecurity.validation('reg',0)),[]);
  await assert.rejects(()=>w.EmprestimoFacilSecurity.beforeSend('reg'),/apenas do cadastro pessoa física/);

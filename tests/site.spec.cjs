@@ -21,8 +21,8 @@ test('layout, fotos, logos transparentes e tema claro',async({page},info)=>{
  await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:info.outputPath('inicio-'+info.project.name+'.png'),fullPage:false,animations:'disabled'});await page.screenshot({path:info.outputPath('pagina-'+info.project.name+'.png'),fullPage:true,animations:'disabled'});expect(errors).toEqual([]);
 });
 test('barra atualiza durante o movimento, limites e teclado',async({page})=>{
- const range=page.locator('#quote_amount');await range.focus();await range.press('ArrowRight');await expect(page.locator('#quote-amount-display')).toContainText('2250');await range.press('Home');await expect(page.locator('#quote-amount-display')).toContainText('500');await expect(range).toHaveValue('500');await range.press('End');await expect(range).toHaveValue('3500');
- await range.press('ArrowLeft');await expect(page.locator('#quote-amount-display')).toContainText('3250');
+ const range=page.locator('#quote_amount');await range.focus();await range.press('ArrowRight');await expect(page.locator('#quote-amount-display')).toContainText('2.250,00');await range.press('Home');await expect(page.locator('#quote-amount-display')).toContainText('500');await expect(range).toHaveValue('500');await range.press('End');await expect(range).toHaveValue('3500');
+ await range.press('ArrowLeft');await expect(page.locator('#quote-amount-display')).toContainText('3.250,00');
  for(const key of ['Home','End']){await range.press(key);const row=await page.locator('.amount-bubble-row').boundingBox(),bubble=await page.locator('#quote-amount-display').boundingBox();expect(bubble.x).toBeGreaterThanOrEqual(row.x-1);expect(bubble.x+bubble.width).toBeLessThanOrEqual(row.x+row.width+1);}
  await page.evaluate(()=>EmprestimoFacil.setAmount(2000));await range.scrollIntoViewIfNeeded();const box=await range.boundingBox();const y=box.y+box.height/2;await page.mouse.move(box.x+box.width/2,y);await page.mouse.down();await page.mouse.move(box.x+box.width*.75,y,{steps:12});await expect.poll(()=>page.evaluate(()=>EmprestimoFacil.getState().amount)).toBeGreaterThan(2000);await page.mouse.up();
 });

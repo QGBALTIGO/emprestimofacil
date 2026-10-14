@@ -5,6 +5,8 @@ __pycache__/
 *.zip
 playwright-report/
 test-results/
+test-results-*/
+frontend*.log
 
 var/
 .env

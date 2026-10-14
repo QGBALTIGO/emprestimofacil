@@ -1,29 +1,43 @@
-import hashlib
 import hmac
 import secrets
+from datetime import datetime,timezone
+from typing import Annotated,Literal
+from uuid import UUID
 
 import pyotp
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, Query
 from fastapi.responses import HTMLResponse, Response
+from pydantic import BaseModel,ConfigDict,Field,StrictStr,StringConstraints
 
 from backend.private_store import password_hash, password_matches
 from backend.secure_models import AdminLogin
 
 COOKIE = '__Host-ef-admin'
 
-# The panel is isolated from the public registration and never stores tokens in browser storage.
-PAGE = '''<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Revisão de cadastros | Empréstimo Fácil</title><style>
-body{margin:0;background:#f4f7f5;color:#18352b;font:15px/1.6 system-ui,sans-serif}main{max-width:1000px;margin:40px auto;padding:24px}h1{font-size:26px}h2{font-size:20px}form,section{background:white;border:1px solid #dce6df;border-radius:12px;padding:24px;margin:20px 0}label{display:block;margin:16px 0}input{display:block;box-sizing:border-box;width:100%;max-width:420px;padding:12px;border:1px solid #bacfc1;border-radius:6px;font:inherit}button,a{font:inherit}button{padding:10px 16px;border:1px solid #087d32;border-radius:6px;background:#087d32;color:white;cursor:pointer}button:disabled{opacity:.5}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f4f7f5;padding:20px}td,th{text-align:left;padding:12px;border-bottom:1px solid #dce6df}table{width:100%;font-size:13px;border-collapse:collapse}.scroll{overflow:auto}.files{display:flex;gap:12px;flex-wrap:wrap}a{color:#087d32}[hidden]{display:none!important}#message{color:#8b2525}@media(max-width:600px){main{margin:12px auto;padding:16px}section,form{padding:16px}td,th{padding:8px}}
-</style></head><body><main><h1>Empréstimo Fácil</h1><p>Revisão de cadastros</p><p id="message" role="status"></p><form id="login"><h2>Acesso da equipe</h2><label>Usuário<input name="username" required autocomplete="username" maxlength="80"></label><label>Senha<input name="password" type="password" required autocomplete="current-password" minlength="12" maxlength="128"></label><label>Código do autenticador<input name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6"></label><button>Entrar</button></form><section id="panel" hidden><button id="logout">Sair</button><h2>Cadastros recebidos</h2><p>Recebimento e conexão bancária não representam aprovação de crédito.</p><button id="billing-load" type="button">Parcelas e pagamentos</button><p id="cakto-state"></p><div id="billing-rows" class="scroll"></div><div class="scroll"><table><thead><tr><th>Protocolo</th><th>Tipo</th><th>Estado</th><th>Recebido</th><th></th></tr></thead><tbody id="rows"></tbody></table></div></section><section id="detail" hidden><h2>Conferência do cadastro</h2><p id="record-note"></p><div id="files" class="files"></div><pre id="data"></pre></section></main><script>
-(()=>{'use strict';const d=document,msg=d.getElementById('message');async function api(path,options={}){const r=await fetch(path,{...options,credentials:'same-origin',cache:'no-store',redirect:'error',headers:{'Content-Type':'application/json',...options.headers}});if(!r.ok){if(r.status===401){d.getElementById('login').hidden=false;d.getElementById('panel').hidden=true;d.getElementById('detail').hidden=true;}let error;try{error=(await r.json()).detail;}catch{}throw Error(typeof error==='string'?error:'Não foi possível concluir a operação.');}return r.json();}async function load(){const result=await api('/api/admin/records'),rows=d.getElementById('rows');rows.replaceChildren();d.getElementById('login').hidden=true;d.getElementById('panel').hidden=false;for(const item of result.records){const tr=d.createElement('tr');for(const text of [item.id,item.kind,item.status,new Date(item.created_at).toLocaleString('pt-BR')]){const td=d.createElement('td');td.textContent=text;tr.append(td);}const td=d.createElement('td'),button=d.createElement('button');button.textContent='Abrir';button.addEventListener('click',async()=>{try{const data=await api('/api/admin/records/'+item.kind+'/'+item.id);d.getElementById('data').textContent=JSON.stringify(data.data,null,2);d.getElementById('record-note').textContent='Acesso registrado. Dados bancários de sandbox devem ser usados somente em testes.';const links=d.getElementById('files');links.replaceChildren();for(const key of data.files){const a=d.createElement('a');a.textContent='Baixar '+key;a.href='/api/admin/files/'+item.id+'/'+key;a.rel='noreferrer';links.append(a);}d.getElementById('detail').hidden=false;d.getElementById('detail').scrollIntoView({block:'start'});msg.textContent='';}catch(error){msg.textContent=error.message;}});td.append(button);tr.append(td);rows.append(tr);}}d.getElementById('login').addEventListener('submit',async e=>{e.preventDefault();const form=e.currentTarget,button=form.querySelector('button');button.disabled=true;try{await api('/api/admin/login',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(form)))});form.reset();await load();msg.textContent='';}catch(error){msg.textContent=error.message;}finally{button.disabled=false;form.elements.password.value='';form.elements.code.value='';}});d.getElementById('billing-load').addEventListener('click',async()=>{try{const connection=await api('/api/admin/cakto/status');d.getElementById('cakto-state').textContent=connection.authenticated?'Autenticação da API Cakto confirmada. '+(connection.can_charge?'Cobranças habilitadas no serviço.':'Cobranças aguardam ativação.'): 'Cakto ainda não configurada no serviço.';const result=await api('/api/admin/installments'),box=d.getElementById('billing-rows');box.replaceChildren();if(!result.installments.length){box.textContent='Nenhum contrato desembolsado com parcelas registradas.';return;}const table=d.createElement('table');for(const item of result.installments){const row=d.createElement('tr');for(const text of [item.customer_first_name,item.number+' / '+item.total_installments,item.due_date,new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(item.amount_cents/100),item.status]){const cell=d.createElement('td');cell.textContent=text;row.append(cell);}const cell=d.createElement('td'),button=d.createElement('button');button.textContent='Gerar link da parcela';button.disabled=!connection.can_charge;button.addEventListener('click',async()=>{button.disabled=true;try{const link=await api('/api/admin/installments/'+item.installment_id+'/link',{method:'POST',body:'{}'});const field=d.createElement('input');field.readOnly=true;field.value=link.url;field.setAttribute('aria-label','Link privado da parcela');cell.append(field);field.select();msg.textContent='Link privado válido por sete dias. Compartilhe apenas com o titular.';}catch(error){msg.textContent=error.message;}finally{button.disabled=false;}});cell.append(button);row.append(cell);table.append(row);}box.append(table);}catch(error){msg.textContent=error.message;}});d.getElementById('logout').addEventListener('click',async()=>{try{await api('/api/admin/logout',{method:'POST',body:'{}'});}finally{d.getElementById('login').hidden=false;d.getElementById('panel').hidden=true;d.getElementById('detail').hidden=true;d.getElementById('data').textContent='';d.getElementById('rows').replaceChildren();d.getElementById('files').replaceChildren();d.getElementById('billing-rows').replaceChildren();d.getElementById('cakto-state').textContent='';}});load().catch(()=>{});})();
-</script></body></html>'''
+
+class ReviewUpdate(BaseModel):
+    model_config=ConfigDict(extra='forbid',str_strip_whitespace=True)
+    state:Literal['received','under_review','information_requested','closed']
+    message:StrictStr=Field(default='',max_length=500)
+    internal_note:StrictStr=Field(default='',max_length=2000)
+
+
+class SetupStart(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    token:StrictStr=Field(min_length=40,max_length=100,repr=False)
+
+
+class SetupComplete(SetupStart):
+    password:Annotated[StrictStr,StringConstraints(strip_whitespace=False)]=Field(min_length=12,max_length=128,repr=False)
+    code:StrictStr=Field(pattern=r'^\d{6}$',repr=False)
+
 
 
 def install_admin(app, security):
     dummy_password = password_hash(secrets.token_urlsafe(24))
 
     def session(request):
-        if not security.enabled:
+        if not security.origin_valid:
             raise HTTPException(503,'Revisão ainda não disponível.')
         token = request.cookies.get(COOKIE,'')
         if not 20 <= len(token) <= 100:
@@ -39,13 +53,12 @@ def install_admin(app, security):
 
     @app.get('/admin',response_class=HTMLResponse)
     def panel():
-        script = PAGE.split('<script>')[1].split('</script>')[0]
-        digest = __import__('base64').b64encode(hashlib.sha256(script.encode()).digest()).decode()
-        return HTMLResponse(PAGE,headers={'Content-Security-Policy':"default-src 'none'; script-src 'sha256-"+digest+"'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",'Cache-Control':'no-store'})
+        from backend.client import private_page
+        return private_page('admin-panel.html')
 
     @app.post('/api/admin/login')
     def login(body: AdminLogin,request: Request,response: Response):
-        if not security.enabled:
+        if not security.origin_valid:
             raise HTTPException(503,'Revisão ainda não disponível.')
         private,now = security.private,security.clock()
         ip = request.client.host if request.client else 'unknown'
@@ -87,16 +100,26 @@ def install_admin(app, security):
         return {'status':'closed'}
 
     @app.get('/api/admin/records')
-    def records(request: Request):
+    def records(request: Request,page:int=Query(1,ge=1,le=100000),page_size:int=Query(25,ge=1,le=100),
+                kind:Literal['all','initial','pf']='all',
+                state:Literal['all','received','uploading','under_review','information_requested','closed']='all',
+                q:str=Query('',max_length=36)):
         _,actor = session(request)
-        from datetime import datetime,timezone
+        now=security.clock()
+        cutoff=datetime.fromtimestamp(now-security.retention*86400,timezone.utc).isoformat()
+        combined='''SELECT p.id AS id,'pf' AS kind,COALESCE(r.state,p.status) AS status,p.created AS created
+            FROM pf_records p LEFT JOIN application_reviews r ON r.kind='pf' AND r.identity=p.id WHERE p.expires>?
+            UNION ALL SELECT a.application_id,'initial',COALESCE(r.state,'received'),CAST(strftime('%s',a.created_at) AS REAL)
+            FROM applications a LEFT JOIN application_reviews r ON r.kind='initial' AND r.identity=a.application_id WHERE a.created_at>?'''
+        where=" WHERE (?='all' OR kind=?) AND (?='all' OR status=?) AND instr(id,?)>0"
+        params=(now,cutoff,kind,kind,state,state,q.strip().lower())
         with security.private.store.connect() as db:
-            pf = [{'id':r[0],'kind':'pf','status':r[1],'created_at':datetime.fromtimestamp(r[2],timezone.utc).isoformat()}
-                  for r in db.execute('SELECT id,status,created FROM pf_records WHERE expires>? ORDER BY created DESC LIMIT 100',(security.clock(),))]
-            original = [{'id':r[0],'kind':'initial','status':'received','created_at':r[1]}
-                        for r in db.execute('SELECT application_id,created_at FROM applications ORDER BY created_at DESC LIMIT 100')]
+            total=db.execute('SELECT count(*) FROM ('+combined+')'+where,params).fetchone()[0]
+            rows=db.execute('SELECT * FROM ('+combined+')'+where+' ORDER BY created DESC,id DESC LIMIT ? OFFSET ?',
+                            (*params,page_size,(page-1)*page_size)).fetchall()
         security.private.audit(actor,'records_listed')
-        return {'records':sorted(pf+original,key=lambda r:r['created_at'],reverse=True)[:100]}
+        return {'records':[{'id':r[0],'kind':r[1],'status':r[2],'created_at':datetime.fromtimestamp(r[3],timezone.utc).isoformat()} for r in rows],
+                'page':page,'page_size':page_size,'total':total,'total_pages':max(1,(total+page_size-1)//page_size)}
 
     @app.get('/api/admin/records/{kind}/{identity}')
     def record(kind: str,identity: str,request: Request):
@@ -109,7 +132,8 @@ def install_admin(app, security):
         elif kind == 'initial':
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
             with private.store.connect() as db:
-                row = db.execute('SELECT nonce,ciphertext FROM applications WHERE application_id=?',(identity,)).fetchone()
+                cutoff=datetime.fromtimestamp(security.clock()-security.retention*86400,timezone.utc).isoformat()
+                row = db.execute('SELECT nonce,ciphertext FROM applications WHERE application_id=? AND created_at>?',(identity,cutoff)).fetchone()
             if not row:
                 raise HTTPException(404,'Cadastro não encontrado.')
             data = __import__('json').loads(AESGCM(private.key).decrypt(row[0],row[1],identity.encode()))
@@ -117,7 +141,84 @@ def install_admin(app, security):
         else:
             raise HTTPException(404,'Cadastro não encontrado.')
         private.audit(actor,'record_viewed',identity)
-        return {'data':data,'files':files}
+        from backend.client import review
+        current=review(private,kind,identity)
+        with private.store.connect() as db:
+            row=db.execute('SELECT payload FROM application_reviews WHERE kind=? AND identity=?',(kind,identity)).fetchone()
+        if row:current['internal_note']=private.unseal('review:'+kind+':'+identity,row[0]).get('internal_note','')
+        return {'data':data,'files':files,'review':current}
+
+    @app.post('/api/admin/records/{kind}/{identity}/review')
+    def update_review(kind:Literal['initial','pf'],identity:UUID,body:ReviewUpdate,request:Request):
+        _,actor=session(request)
+        identity=str(identity);private=security.private
+        if kind=='pf':private.pf(identity)
+        else:
+            with private.store.connect() as db:
+                if not db.execute('SELECT 1 FROM applications WHERE application_id=?',(identity,)).fetchone():
+                    raise HTTPException(404,'Cadastro não encontrado.')
+        payload=private.seal('review:'+kind+':'+identity,{'message':body.message,'internal_note':body.internal_note})
+        with private.store.connect() as db:
+            db.execute('INSERT OR REPLACE INTO application_reviews VALUES (?,?,?,?,?)',
+                       (kind,identity,body.state,security.clock(),payload))
+        private.audit(actor,'record_review_'+body.state,identity)
+        return {'status':'updated'}
+
+    @app.get('/api/admin/overview')
+    def overview(request:Request):
+        _,actor=session(request);private=security.private
+        with private.store.connect() as db:
+            counts={table:db.execute('SELECT count(*) FROM '+table).fetchone()[0] for table in
+                    ['applications','pf_records','administrators','provider_deletions']}
+            uploads=db.execute("SELECT count(*) FROM pf_records WHERE status='uploading' AND expires>?",(security.clock(),)).fetchone()[0]
+        billing,sales=app.state.billing,app.state.sales
+        private.audit(actor,'overview_viewed')
+        return {'receiving':security.enabled,'counts':{'initial':counts['applications'],'pf':counts['pf_records'],
+                'incomplete':uploads,'administrators':counts['administrators'],'pending_revocations':counts['provider_deletions']},
+                'retention_days':security.retention,'integrations':{
+                    'email':{'configured':security.channel_ready('email'),'provider':getattr(security.providers,'email_provider','twilio')},
+                    'sms':{'configured':security.channel_ready('sms'),'provider':'twilio'},
+                    'open_finance':{'configured':bool(security.providers.bank_ready),'environment':security.providers.belvo_host,
+                                    'required':security.bank_required},
+                    'cakto':{'configured':bool(billing.provider.configured),'enabled':bool(billing.provider.can_charge)},
+                    'affiliate_sales':{'enabled':bool(sales.ready)}},
+                'note':'Configuração não confirma entrega de códigos, conexão bancária ou pagamento. Valide os provedores antes de ativar.'}
+
+    def bootstrap(body,request):
+        if not security.origin_valid:raise HTTPException(503,'Configure a origem HTTPS antes de iniciar.')
+        private=security.private
+        private.limit('admin-setup-ip',request.client.host if request.client else 'unknown',5,900)
+        key=private.digest('admin-bootstrap',body.token)
+        with private.store.connect() as db:
+            row=db.execute('SELECT username,expires,payload FROM admin_bootstrap WHERE id=?',(key,)).fetchone()
+        if not row or row[1]<=security.clock():raise HTTPException(401,'Convite inválido ou expirado.')
+        return key,row[0],private.unseal('bootstrap:'+key,row[2])
+
+    @app.post('/api/admin/setup/start')
+    def setup_start(body:SetupStart,request:Request):
+        key,username,data=bootstrap(body,request)
+        uri=pyotp.TOTP(data['secret']).provisioning_uri(username,issuer_name='Empréstimo Fácil')
+        return {'username':username,'secret':data['secret'],'provisioning_uri':uri,
+                'note':'Guarde a chave apenas no seu autenticador. O convite expira e é consumido ao concluir.'}
+
+    @app.post('/api/admin/setup/complete')
+    def setup_complete(body:SetupComplete,request:Request):
+        key,username,data=bootstrap(body,request)
+        now=security.clock();totp=pyotp.TOTP(data['secret'])
+        step=next((n for n in [int(now//30),int(now//30)-1,int(now//30)+1] if hmac.compare_digest(totp.at(n*30),body.code)),None)
+        if step is None:raise HTTPException(422,'Código do autenticador inválido.')
+        encoded=password_hash(body.password)
+        with security.private.store.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row=db.execute('SELECT username,expires FROM admin_bootstrap WHERE id=?',(key,)).fetchone()
+            if not row or row[1]<=now:raise HTTPException(401,'Convite inválido ou expirado.')
+            if db.execute('SELECT 1 FROM administrators WHERE username=?',(username,)).fetchone():
+                raise HTTPException(409,'Este acesso já foi criado.')
+            db.execute('INSERT INTO administrators(username,password,totp,last_step) VALUES (?,?,?,?)',
+                       (username,encoded,security.private.seal('totp:'+username,{'secret':data['secret']}),step))
+            db.execute('DELETE FROM admin_bootstrap WHERE id=?',(key,))
+        security.private.audit(security.private.digest('admin-actor',username),'admin_created')
+        return {'status':'created'}
 
     @app.get('/api/admin/files/{identity}/{kind}')
     def file(identity: str,kind: str,request: Request):

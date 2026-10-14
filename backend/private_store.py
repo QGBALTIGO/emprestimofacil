@@ -54,10 +54,31 @@ class PrivateStore:
                 CREATE TABLE IF NOT EXISTS administrators (username TEXT PRIMARY KEY, password TEXT NOT NULL,
                     totp BLOB NOT NULL, last_step INTEGER NOT NULL DEFAULT -1);
                 CREATE TABLE IF NOT EXISTS admin_sessions (id TEXT PRIMARY KEY, username TEXT NOT NULL, expires REAL NOT NULL);
+                CREATE TABLE IF NOT EXISTS client_sessions (id TEXT PRIMARY KEY, application_id TEXT NOT NULL, expires REAL NOT NULL);
+                CREATE TABLE IF NOT EXISTS application_reviews (kind TEXT NOT NULL, identity TEXT NOT NULL,
+                    state TEXT NOT NULL, updated REAL NOT NULL, payload BLOB NOT NULL, PRIMARY KEY(kind,identity));
+                CREATE TABLE IF NOT EXISTS admin_bootstrap (id TEXT PRIMARY KEY, username TEXT NOT NULL,
+                    expires REAL NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE IF NOT EXISTS access_audit (seq INTEGER PRIMARY KEY AUTOINCREMENT, at REAL NOT NULL,
                     actor TEXT NOT NULL, action TEXT NOT NULL, object TEXT NOT NULL, previous TEXT NOT NULL, mac TEXT NOT NULL);
                 CREATE TABLE IF NOT EXISTS provider_deletions (link TEXT PRIMARY KEY, created REAL NOT NULL);
             ''')
+            columns={r[1] for r in db.execute('PRAGMA table_info(pf_records)')}
+            if 'owner_digest' not in columns or 'owner_email_digest' not in columns:
+                if 'owner_digest' not in columns:db.execute("ALTER TABLE pf_records ADD COLUMN owner_digest TEXT NOT NULL DEFAULT ''")
+                if 'owner_email_digest' not in columns:db.execute("ALTER TABLE pf_records ADD COLUMN owner_email_digest TEXT NOT NULL DEFAULT ''")
+                for identity,payload in db.execute('SELECT id,payload FROM pf_records').fetchall():
+                    applicant=self.unseal('pf:'+identity,payload)['applicant']
+                    owner=self.digest('pf-phone',applicant['phone'])
+                    email=self.digest('pf-email',applicant['email'])
+                    db.execute('UPDATE pf_records SET owner_digest=?,owner_email_digest=? WHERE id=?',(owner,email,identity))
+            db.execute('CREATE INDEX IF NOT EXISTS pf_owner ON pf_records(owner_digest,created)')
+            db.execute('CREATE INDEX IF NOT EXISTS pf_email_owner ON pf_records(owner_email_digest,created)')
+        self.storage_max=int(os.getenv('MAX_PRIVATE_STORAGE_MB','1024'))*1024*1024
+        self.disk_reserve=int(os.getenv('MIN_FREE_DISK_MB','256'))*1024*1024
+        self.pf_daily_limit=int(os.getenv('PF_DAILY_LIMIT','3'))
+        if not 32*1024*1024<=self.storage_max<=102400*1024*1024 or not 16*1024*1024<=self.disk_reserve<=102400*1024*1024 or not 1<=self.pf_daily_limit<=10:
+            raise RuntimeError('Configure limites válidos para armazenamento e envio PF.')
 
     @contextmanager
     def locked(self, key):
@@ -139,9 +160,16 @@ class PrivateStore:
             content['server_attestations'] = attestations
             content['required_files'] = model.required_files()
             now = self.clock()
-            db.execute('INSERT INTO pf_records VALUES (?,?,?,?,?,?,?,?)',
+            applicant=content['applicant']
+            owner=self.digest('pf-phone',applicant['phone']);email=self.digest('pf-email',applicant['email'])
+            if db.execute("SELECT 1 FROM pf_records WHERE (owner_digest=? OR owner_email_digest=?) AND status='uploading' AND expires>? AND created>?",
+                          (owner,email,now,now-86400)).fetchone():
+                raise HTTPException(409,'Já existe um cadastro documental em andamento. Retome o envio anterior.')
+            if db.execute('SELECT count(*) FROM pf_records WHERE (owner_digest=? OR owner_email_digest=?) AND created>?',(owner,email,now-86400)).fetchone()[0]>=self.pf_daily_limit:
+                raise HTTPException(429,'Limite diário de cadastros documentais atingido. Tente novamente amanhã.',headers={'Retry-After':'86400'})
+            db.execute('INSERT INTO pf_records(id,session_id,request_id,digest,status,created,expires,payload,owner_digest,owner_email_digest) VALUES (?,?,?,?,?,?,?,?,?,?)',
                        (identity,sid,request_id,fingerprint,'uploading',now,now+retention_days*86400,
-                        self.seal('pf:'+identity,content)))
+                        self.seal('pf:'+identity,content),owner,email))
         self.audit(sid,'pf_started',identity)
         return identity, 'uploading'
 
@@ -153,6 +181,18 @@ class PrivateStore:
         return self.unseal('pf:'+identity,row[2]), row[1]
 
     def save_file(self, record, kind, raw, extension):
+        with self.locked('private-storage'):
+            self._save_file(record,kind,raw,extension)
+
+    def _save_file(self, record, kind, raw, extension):
+        import shutil
+        if shutil.disk_usage(self.files_dir).free < self.disk_reserve+len(raw)*2:
+            raise HTTPException(507,'Armazenamento temporariamente indisponível. Tente novamente mais tarde.')
+        with self.store.connect() as db:
+            total=db.execute('SELECT COALESCE(sum(size),0) FROM private_files').fetchone()[0]
+            prior=db.execute('SELECT size FROM private_files WHERE record_id=? AND kind=?',(record,kind)).fetchone()
+        if total-(prior[0] if prior else 0)+len(raw)>self.storage_max:
+            raise HTTPException(507,'Armazenamento temporariamente indisponível. Tente novamente mais tarde.')
         identity, nonce = str(uuid.uuid4()), secrets.token_bytes(12)
         path = self.files_dir / (identity+'.enc')
         aad = ('file:'+record+':'+kind+':'+identity).encode()
@@ -197,6 +237,7 @@ class PrivateStore:
             paths = [self.files_dir/(r[0]+'.enc') for r in db.execute('SELECT id FROM private_files WHERE record_id=?',(identity,))]
             db.execute('DELETE FROM private_files WHERE record_id=?',(identity,))
             db.execute('DELETE FROM pf_records WHERE id=?',(identity,))
+            db.execute("DELETE FROM application_reviews WHERE kind='pf' AND identity=?",(identity,))
         for path in paths:
             path.unlink(missing_ok=True)
         self.audit(actor,'pf_deleted',identity)
@@ -232,10 +273,13 @@ class PrivateStore:
         cutoff = datetime.fromtimestamp(now-retention_days*86400,timezone.utc).isoformat()
         with self.store.connect() as db:
             db.execute('DELETE FROM applications WHERE created_at<=?',(cutoff,))
+            db.execute('DELETE FROM client_sessions WHERE expires<=? OR application_id NOT IN (SELECT application_id FROM applications)',(now,))
+            db.execute("DELETE FROM application_reviews WHERE kind='initial' AND identity NOT IN (SELECT application_id FROM applications)")
             for row in db.execute('SELECT link FROM bank_attempts WHERE expires<=? AND consumed=0 AND link IS NOT NULL',(now,)):
                 db.execute('INSERT OR IGNORE INTO provider_deletions VALUES (?,?)',(row[0],now))
             db.execute('DELETE FROM bank_attempts WHERE expires<=?',(now,))
             db.execute('DELETE FROM admin_sessions WHERE expires<=?',(now,))
+            db.execute('DELETE FROM admin_bootstrap WHERE expires<=?',(now,))
             db.execute('DELETE FROM security_limits WHERE start<=?',(now-86400,))
             db.execute('DELETE FROM webhook_events WHERE expires<=?',(now,))
             known = {r[0]+'.enc' for r in db.execute('SELECT id FROM private_files')}
