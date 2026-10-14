@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;self&#x27;; script-src &#x27;sha256-nxxvt+KU/wkGQCF1fjH1/UFoFYMDZ4tHjwRSmARUmp8=&#x27;; style-src &#x27;self&#x27; &#x27;unsafe-inline&#x27;; img-src &#x27;self&#x27; blob: data:; media-src &#x27;self&#x27; blob:; font-src &#x27;self&#x27;; connect-src &#x27;self&#x27; https://viacep.com.br https://opencep.com; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;self&#x27;"><meta name="referrer" content="no-referrer"><meta name="color-scheme" content="only light"><meta name="theme-color" content="#087d32"><title>Empréstimo Fácil | Seus planos, mais perto</title><meta name="description" content="Escolha o valor e o prazo do seu empréstimo pessoal. Confira as condições antes de contratar com a Empréstimo Fácil."><link rel="icon" type="image/png" href="assets/logo-transparent.png"><style>@font-face {
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src &#x27;self&#x27;; script-src &#x27;sha256-xjWoEjsRflVQXRv41a4kqxFdoezOGOfA8gJI3BLqNeY=&#x27;; style-src &#x27;self&#x27; &#x27;unsafe-inline&#x27;; img-src &#x27;self&#x27; blob: data:; media-src &#x27;self&#x27; blob:; font-src &#x27;self&#x27;; connect-src &#x27;self&#x27; https://viacep.com.br https://opencep.com; object-src &#x27;none&#x27;; base-uri &#x27;none&#x27;; form-action &#x27;self&#x27;"><meta name="referrer" content="no-referrer"><meta name="color-scheme" content="only light"><meta name="theme-color" content="#087d32"><title>Empréstimo Fácil | Seus planos, mais perto</title><meta name="description" content="Escolha o valor e o prazo do seu empréstimo pessoal. Confira as condições antes de contratar com a Empréstimo Fácil."><link rel="icon" type="image/png" href="assets/logo-transparent.png"><style>@font-face {
   font-display: swap;
   font-family: 'Open Sans';
   font-style: normal;
@@ -465,7 +465,7 @@
       const kind=resolved(field);if(!kind||e.isComposing)return;
       const raw=field.value,start=field.selectionStart??raw.length,end=field.selectionEnd??start,formatted=format(kind,raw);
       const n=digits(raw),removed=['phone','pixPhone'].includes(kind)&&[12,13].includes(n.length)&&n.startsWith('55')?2:0;
-      const position=cursor=>{let count=Math.max(0,digits(raw.slice(0,cursor)).length-removed);if(!count)return 0;let seen=0;for(let i=0;i<formatted.length;i++)if(/\d/.test(formatted[i])&&++seen===count)return i+1;return formatted.length;};
+      const position=cursor=>{let count=Math.max(0,digits(raw.slice(0,cursor)).length-removed);if(!count)return formatted.startsWith('+')&&cursor>0?1:0;let seen=0;for(let i=0;i<formatted.length;i++)if(/\d/.test(formatted[i])&&++seen===count)return i+1;return formatted.length;};
       field.value=formatted;
       const iso=kind==='date'&&/^\d{4}-\d{2}-\d{2}$/.test(raw);
       field.setSelectionRange(iso?formatted.length:position(start),iso?formatted.length:position(end));

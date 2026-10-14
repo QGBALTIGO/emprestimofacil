@@ -41,7 +41,7 @@
       const kind=resolved(field);if(!kind||e.isComposing)return;
       const raw=field.value,start=field.selectionStart??raw.length,end=field.selectionEnd??start,formatted=format(kind,raw);
       const n=digits(raw),removed=['phone','pixPhone'].includes(kind)&&[12,13].includes(n.length)&&n.startsWith('55')?2:0;
-      const position=cursor=>{let count=Math.max(0,digits(raw.slice(0,cursor)).length-removed);if(!count)return 0;let seen=0;for(let i=0;i<formatted.length;i++)if(/\d/.test(formatted[i])&&++seen===count)return i+1;return formatted.length;};
+      const position=cursor=>{let count=Math.max(0,digits(raw.slice(0,cursor)).length-removed);if(!count)return formatted.startsWith('+')&&cursor>0?1:0;let seen=0;for(let i=0;i<formatted.length;i++)if(/\d/.test(formatted[i])&&++seen===count)return i+1;return formatted.length;};
       field.value=formatted;
       const iso=kind==='date'&&/^\d{4}-\d{2}-\d{2}$/.test(raw);
       field.setSelectionRange(iso?formatted.length:position(start),iso?formatted.length:position(end));

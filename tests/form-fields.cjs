@@ -20,6 +20,7 @@ assert.equal(put('pf-support_phone','1132345678').value,'(11) 3234-5678');
 for(let i=1;i<=5;i++)assert.equal(put('pf-contact_phone_'+i,'21987654321').value,'(21) 98765-4321');
 assert.equal(put('reg-birth','1990-01-01').value,'01/01/1990');assert.equal(put('pf-issue_date','01012010').value,'01/01/2010');
 d.getElementById('reg-pix-type').value='cpf';assert.equal(put('reg-pix-key','11144477735').value,'111.444.777-35');
+d.getElementById('reg-pix-type').value='phone';assert.equal(put('reg-pix-key','+').selectionStart,1);assert.equal(put('reg-pix-key','+14155552671').value,'+14155552671');
 for(const id of ['reg-name','reg-email','reg-password-confirm','pf-instagram','pf-contact_phone_1']){
  const f=d.getElementById(id);assert(f.placeholder);assert(f.parentElement.querySelector('.field-input-icon[aria-hidden="true"]'));
  for(const ref of (f.getAttribute('aria-describedby')||'').split(/\s+/).filter(Boolean))assert(d.getElementById(ref),ref);
