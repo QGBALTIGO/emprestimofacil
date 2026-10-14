@@ -1,5 +1,8 @@
 (function () {
   'use strict';
+  if(location.hostname==='qgbaltigo.github.io' && /^\/emprestimofacil(?:\/|$)/i.test(location.pathname)){
+    location.replace('https://emprestimofacil.pro/'+location.hash);return;
+  }
   const config = JSON.parse(document.getElementById('business-config').textContent);
   const d = document, form = d.getElementById('home-page--get-quote'), range = d.getElementById('quote_amount');
   const money = new Intl.NumberFormat('pt-BR', {style:'currency',currency:'BRL'});

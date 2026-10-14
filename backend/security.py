@@ -7,6 +7,8 @@ import re
 import secrets
 import time
 import uuid
+import asyncio
+import threading
 from urllib.parse import urlparse
 
 from fastapi import HTTPException, Request
@@ -16,7 +18,7 @@ from starlette.concurrency import run_in_threadpool
 
 from backend.file_validation import MAX_FILE, validate_file
 from backend.private_store import PrivateStore
-from backend.providers import ProviderUnavailable, Providers
+from backend.providers import ProviderUnavailable, Providers, EmailQuotaExceeded
 from backend.secure_models import BankConsent, CodeCheck, CodeRequest, PF, Profile
 
 COOKIE = '__Host-ef-session'
@@ -37,6 +39,7 @@ class Security:
         self.bank_required = bank_required if bank_required is not None else os.getenv('OPEN_FINANCE_REQUIRED','false') == 'true'
         self.phone_required = phone_required if phone_required is not None else os.getenv('PHONE_VERIFICATION_REQUIRED','true') == 'true'
         self.private = None
+        self._upload_slots=threading.BoundedSemaphore(2)
 
     def open(self, store):
         self.private = PrivateStore(store,self.clock)
@@ -123,6 +126,8 @@ class Security:
     def install(self, app):
         @app.exception_handler(ProviderUnavailable)
         async def provider_error(request, exc):
+            if isinstance(exc,EmailQuotaExceeded):
+                return JSONResponse({'detail':'O limite de envio de e-mails foi atingido. Tente novamente após a renovação do limite.'},status_code=429,headers={'Retry-After':str(exc.retry_after)})
             return JSONResponse({'detail':'Não foi possível confirmar a operação com o serviço. Tente novamente.'},status_code=503)
 
         @app.middleware('http')
@@ -152,7 +157,7 @@ class Security:
                 if self.private:
                     try:
                         ip = request.client.host if request.client else 'unknown'
-                        self.private.limit('requests',ip,120,60)
+                        if not callback and path!='/api/security/capabilities':await run_in_threadpool(self.private.limit,'requests',ip,120,60)
                     except HTTPException as error:
                         return JSONResponse({'detail':error.detail},status_code=error.status_code,headers=error.headers)
             response = await call_next(request)
@@ -164,8 +169,31 @@ class Security:
                 response.headers['Cache-Control'] = 'no-store'
             return response
 
+        @app.middleware('http')
+        async def bounded_upload(request:Request,call_next):
+            path=request.url.path
+            if not (request.method=='PUT' and path.startswith('/api/pf/applications/') and '/files/' in path):
+                return await call_next(request)
+            if request.headers.get('origin')!=self.origin:
+                return JSONResponse({'detail':'Origem não permitida.'},status_code=403)
+            if __import__('shutil').disk_usage(self.private.files_dir).free<self.private.disk_reserve+MAX_FILE*2:
+                return JSONResponse({'detail':'Armazenamento temporariamente indisponível.'},status_code=507)
+            try:
+                sid,_,_=await run_in_threadpool(self.session,request)
+                identity=path.split('/')[4]
+                await run_in_threadpool(self.private.pf,identity,sid)
+            except HTTPException as error:
+                return JSONResponse({'detail':error.detail},status_code=error.status_code)
+            deadline=asyncio.get_running_loop().time()+8
+            while not self._upload_slots.acquire(blocking=False):
+                if asyncio.get_running_loop().time()>=deadline:
+                    return JSONResponse({'detail':'O envio de documentos está ocupado. Aguarde e tente novamente.'},status_code=503,headers={'Retry-After':'3'})
+                await asyncio.sleep(.05)
+            try:return await call_next(request)
+            finally:self._upload_slots.release()
+
         @app.get('/api/security/capabilities')
-        def capabilities():
+        async def capabilities():
             return {'verification':bool(self.enabled and self.verification_ready),
                     'client_portal':bool(self.origin_valid),
                     'email_verification':bool(self.enabled and self.channel_ready('email')),
@@ -232,6 +260,7 @@ class Security:
                 state['challenges'].pop(body.channel,None)
                 self.private.save_session(sid,state,expiry)
                 if body.channel == 'email' and getattr(self.providers, 'email_provider', '') == 'resend':
+                    self.private.email_budget(reserve=True)
                     code = str(secrets.randbelow(1000000)).zfill(6)
                     delivery_id = str(uuid.uuid4())
                     code_sid = self.providers.email_code(destination, code, delivery_id)

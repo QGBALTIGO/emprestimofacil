@@ -12,6 +12,7 @@ import unittest
 import uuid
 from datetime import date,datetime,timezone
 from pathlib import Path
+from unittest.mock import patch
 from urllib.parse import parse_qs,urlparse
 
 from cryptography.exceptions import InvalidTag
@@ -245,6 +246,11 @@ class SecurityTests(unittest.TestCase):
     def test_backup_restore_expiration_and_private_files(self):
         self.verify();identity=self.start_pf();self.assertEqual(self.upload(identity,'front').status_code,200)
         private=self.app.state.security.private;copied=backup(private,Path(self.temp.name)/'backups')
+        second=backup(private,Path(self.temp.name)/'backups')
+        saved=next((copied/'documents').iterdir());repeated=second/'documents'/saved.name
+        self.assertEqual(saved.stat().st_ino,repeated.stat().st_ino)
+        self.assertNotEqual(saved.stat().st_ino,(private.files_dir/saved.name).stat().st_ino)
+        __import__('shutil').rmtree(copied);copied=second
         self.assertNotIn(b'pessoa@example.test',(copied/'applications.sqlite').read_bytes())
         self.assertEqual((copied.stat().st_mode & 0o777),0o700)
         target=PrivateStore(Store(Path(self.temp.name)/'restored/applications.sqlite',self.key))
@@ -260,6 +266,38 @@ class SecurityTests(unittest.TestCase):
             self.assertFalse(client.get('/api/security/capabilities').json()['verification'])
             self.assertTrue(client.get('/api/health').json()['receiving'])
             self.assertEqual(client.post('/api/security/session',json=profile(),headers=self.headers).status_code,503)
+
+    def test_global_email_budget_uses_utc_days_and_persists_between_instances(self):
+        private=self.app.state.security.private
+        for _ in range(100):private.email_budget(True)
+        self.assertEqual(private.email_budget()['daily_remaining'],0)
+        another=PrivateStore(self.store,lambda:self.clock)
+        with self.assertRaises(__import__('fastapi').HTTPException) as error:another.email_budget(True)
+        self.assertEqual(error.exception.status_code,429)
+        self.clock=(int(self.clock//86400)+1)*86400
+        self.assertEqual(private.email_budget()['daily_remaining'],100)
+        self.assertEqual(private.email_budget()['monthly_remaining'],2900)
+
+    def test_document_validation_limits_concurrent_memory_work(self):
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+        self.verify();identity=self.start_pf();guard=threading.Lock();active=0;peak=0
+        def slow_validation(raw,kind):
+            nonlocal active,peak
+            with guard:active+=1;peak=max(peak,active)
+            try:time.sleep(.15);return jpeg(),'jpg'
+            finally:
+                with guard:active-=1
+        with patch('backend.security.validate_file',side_effect=slow_validation),ThreadPoolExecutor(max_workers=6) as pool:
+            statuses=list(pool.map(lambda _:self.upload(identity,'front').status_code,range(6)))
+        self.assertEqual(statuses,[200]*6);self.assertEqual(peak,2)
+
+    def test_large_rotated_document_remains_readable_and_loses_metadata(self):
+        output=io.BytesIO();image=Image.new('RGB',(4000,3000),(45,85,120));exif=image.getexif();exif[274]=6
+        image.save(output,'JPEG',exif=exif);image.close()
+        sanitized,extension=validate_file(output.getvalue(),'front');self.assertEqual(extension,'jpg')
+        with Image.open(io.BytesIO(sanitized)) as stored:
+            self.assertEqual(stored.size,(1800,2400));self.assertEqual(stored.mode,'RGB');self.assertFalse(stored.getexif())
 
     def test_restore_without_files_rejects_wrong_key(self):
         self.verify()

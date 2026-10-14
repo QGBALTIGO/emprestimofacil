@@ -10,8 +10,9 @@ import sqlite3
 import threading
 import time
 import uuid
+import asyncio
 from collections import deque
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager, contextmanager, suppress
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Annotated
@@ -22,6 +23,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, StringConstraints, field_validator, model_validator
+from backend.passwords import password_hash
 
 ROOT = Path(__file__).resolve().parents[1]
 BANKS = {'237', '104', '341', '033', '001', '323', '260'}
@@ -190,6 +192,7 @@ class Store:
     def __init__(self, path, key):
         self.path = Path(path)
         self.key = key
+        self._connection_lock=threading.RLock()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
         with self.connect() as db:
@@ -217,12 +220,14 @@ class Store:
 
     @contextmanager
     def connect(self):
-        db = sqlite3.connect(self.path, timeout=10)
-        try:
-            with db:
-                yield db
-        finally:
-            db.close()
+        # One bounded writer in this single-worker service. Do not make SQLite
+        # contend among dozens of threadpool connections during a campaign.
+        with self._connection_lock:
+            db = sqlite3.connect(self.path, timeout=10)
+            try:
+                db.execute('PRAGMA secure_delete=ON')
+                with db:yield db
+            finally:db.close()
 
     def digest(self, purpose, value):
         return hmac.new(self.key, (purpose + '\0' + value).encode(), hashlib.sha256).hexdigest()
@@ -232,25 +237,25 @@ class Store:
         canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(',', ':'))
         fingerprint = self.digest('request', canonical)
         with self.connect() as db:
+            prior=db.execute('SELECT application_id,request_digest FROM applications WHERE request_key=?',(request_key,)).fetchone()
+        if prior:
+            if not hmac.compare_digest(prior[1],fingerprint):raise HTTPException(409,'Não foi possível receber esta solicitação. Revise os dados.')
+            return prior[0]
+        application_id=str(uuid.uuid4())
+        encoded_password=password_hash(payload.pop('password'))
+        created_at=datetime.now(timezone.utc).isoformat();payload['received_at']=created_at
+        if attestations is not None:payload['server_attestations']=attestations
+        nonce=secrets.token_bytes(12)
+        ciphertext=AESGCM(self.key).encrypt(nonce,json.dumps(payload,ensure_ascii=False).encode(),application_id.encode())
+        with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             prior = db.execute('SELECT application_id, request_digest FROM applications WHERE request_key = ?', (request_key,)).fetchone()
             if prior:
                 if not hmac.compare_digest(prior[1], fingerprint):
                     raise HTTPException(409, 'Não foi possível receber esta solicitação. Revise os dados.')
                 return prior[0]
-            application_id = str(uuid.uuid4())
-            password = payload.pop('password')
-            salt = secrets.token_bytes(16)
-            derived = hashlib.scrypt(password.encode(), salt=salt, n=32768, r=8, p=1, maxmem=64*1024*1024, dklen=32)
-            password_hash = 'scrypt$32768$8$1$' + base64.b64encode(salt).decode() + '$' + base64.b64encode(derived).decode()
-            created_at = datetime.now(timezone.utc).isoformat()
-            payload['received_at'] = created_at
-            if attestations is not None:
-                payload['server_attestations'] = attestations
-            nonce = secrets.token_bytes(12)
-            ciphertext = AESGCM(self.key).encrypt(nonce, json.dumps(payload, ensure_ascii=False).encode(), application_id.encode())
             try:
-                db.execute('INSERT INTO applications VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', (application_id, request_key, fingerprint, self.digest('cpf', application.applicant.cpf), self.digest('email', application.applicant.email), nonce, ciphertext, password_hash, created_at))
+                db.execute('INSERT INTO applications VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', (application_id, request_key, fingerprint, self.digest('cpf', application.applicant.cpf), self.digest('email', application.applicant.email), nonce, ciphertext, encoded_password, created_at))
             except sqlite3.IntegrityError:
                 raise HTTPException(409, 'Não foi possível receber esta solicitação. Revise os dados.') from None
             return application_id
@@ -281,7 +286,12 @@ def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=
         security.open(app.state.store)
         billing.open()
         sales.open()
-        yield
+        task=asyncio.create_task(sales.worker()) if sales.ready and sales.provider.configured else None
+        try:yield
+        finally:
+            if task:
+                task.cancel()
+                with suppress(asyncio.CancelledError):await task
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.security = security
@@ -343,7 +353,7 @@ def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=
         return {'application_id':application_id, 'status':'received'}
 
     @app.get('/api/health')
-    def health():
+    async def health():
         return {'status':'ok', 'receiving':bool(security.enabled)}
 
     @app.get('/')

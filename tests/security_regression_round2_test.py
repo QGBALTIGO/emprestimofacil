@@ -273,6 +273,14 @@ class AdversarialRoundTwo(unittest.TestCase):
 
 
 class ResendAdversarialRoundTwo(unittest.TestCase):
+    def test_exhausted_local_quota_never_sends_or_creates_a_challenge(self):
+        private=self.app.state.security.private
+        for _ in range(100):private.email_budget(True)
+        response=self.client.post('/api/security/codes/send',json={'channel':'email'},headers=self.headers)
+        self.assertEqual(response.status_code,429);self.assertIn('Retry-After',response.headers)
+        self.assertEqual(self.messages,[])
+        self.assertFalse(self.client.get('/api/security/session').json()['email_verified'])
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.now = time.time()

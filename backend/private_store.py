@@ -16,20 +16,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from fastapi import HTTPException
 
 
-def password_hash(password):
-    salt = secrets.token_bytes(16)
-    key = hashlib.scrypt(password.encode(), salt=salt, n=32768, r=8, p=1, maxmem=64*1024*1024, dklen=32)
-    return 'scrypt$32768$8$1$' + base64.b64encode(salt).decode() + '$' + base64.b64encode(key).decode()
-
-
-def password_matches(password, encoded):
-    try:
-        _, n, r, p, salt, expected = encoded.split('$')
-        actual = hashlib.scrypt(password.encode(), salt=base64.b64decode(salt), n=int(n), r=int(r), p=int(p),
-                                maxmem=64*1024*1024, dklen=32)
-        return hmac.compare_digest(actual, base64.b64decode(expected))
-    except (ValueError, TypeError):
-        return False
+from backend.passwords import password_hash,password_matches
 
 
 class PrivateStore:
@@ -44,6 +31,7 @@ class PrivateStore:
                 PRAGMA secure_delete=ON;
                 CREATE TABLE IF NOT EXISTS secure_sessions (id TEXT PRIMARY KEY, expires REAL NOT NULL, payload BLOB NOT NULL);
                 CREATE TABLE IF NOT EXISTS security_limits (id TEXT PRIMARY KEY, start REAL NOT NULL, count INTEGER NOT NULL);
+                CREATE INDEX IF NOT EXISTS security_limits_start ON security_limits(start);
                 CREATE TABLE IF NOT EXISTS bank_attempts (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, nonce TEXT UNIQUE NOT NULL,
                     expires REAL NOT NULL, link TEXT UNIQUE, resources TEXT NOT NULL DEFAULT '[]', consumed INTEGER NOT NULL DEFAULT 0);
                 CREATE TABLE IF NOT EXISTS webhook_events (id TEXT PRIMARY KEY, expires REAL NOT NULL);
@@ -121,6 +109,28 @@ class PrivateStore:
         state = {'profile':profile, 'verified':{}, 'challenges':{}, 'bank':{'status':'not_connected'}, 'created_at':now}
         self.save_session(key, state, now+7200)
         return token, key, state
+
+    def email_budget(self, reserve=False):
+        """UTC calendar budgets; failed attempts also count conservatively."""
+        from datetime import datetime, timezone
+        now=datetime.fromtimestamp(self.clock(),timezone.utc)
+        day=now.strftime('%Y-%m-%d');month=now.strftime('%Y-%m')
+        tomorrow=(int(self.clock()//86400)+1)*86400
+        next_month=now.replace(year=now.year+(now.month==12),month=now.month%12+1,day=1,hour=0,minute=0,second=0,microsecond=0).timestamp()
+        with self.store.connect() as db:
+            db.execute('CREATE TABLE IF NOT EXISTS email_budget (period TEXT PRIMARY KEY,count INTEGER NOT NULL,expires REAL NOT NULL)')
+            db.execute('BEGIN IMMEDIATE')
+            db.execute('DELETE FROM email_budget WHERE expires<=?',(self.clock(),))
+            used={r[0]:r[1] for r in db.execute('SELECT period,count FROM email_budget')}
+            if reserve:
+                for period,maximum,expiry in [(day,100,tomorrow),(month,3000,next_month)]:
+                    if used.get(period,0)>=maximum:
+                        raise HTTPException(429,'O limite de envio de e-mails foi atingido. Tente novamente após a renovação do limite.',headers={'Retry-After':str(max(1,int(expiry-self.clock())))})
+                for period,expiry in [(day,tomorrow),(month,next_month)]:
+                    db.execute('INSERT INTO email_budget VALUES (?,1,?) ON CONFLICT(period) DO UPDATE SET count=count+1',(period,expiry))
+                    used[period]=used.get(period,0)+1
+        return {'daily_limit':100,'monthly_limit':3000,'daily_remaining':max(0,100-used.get(day,0)),
+                'monthly_remaining':max(0,3000-used.get(month,0)),'resets_at':tomorrow}
 
     def session(self, token):
         if not token or len(token) > 100:

@@ -188,6 +188,8 @@ def install_admin(app, security):
             counts['applications']=db.execute('SELECT count(*) FROM applications WHERE created_at>?',(cutoff,)).fetchone()[0]
             counts['pf_records']=db.execute("SELECT count(*) FROM pf_records WHERE expires>? AND (status!='uploading' OR created>?)",(now,now-86400)).fetchone()[0]
             uploads=db.execute("SELECT count(*) FROM pf_records WHERE status='uploading' AND expires>? AND created>?",(now,now-86400)).fetchone()[0]
+            stored_bytes=db.execute('SELECT COALESCE(sum(size),0) FROM private_files').fetchone()[0]
+            pending_pix=db.execute('SELECT count(*) FROM sales_reconcile_queue').fetchone()[0]
         billing,sales=app.state.billing,app.state.sales
         provider=security.providers
         def absent(items):return [key for key,attribute in items if not getattr(provider,attribute,'')]
@@ -197,7 +199,10 @@ def install_admin(app, security):
         cakto_missing=[key for key,attribute in [('CAKTO_CLIENT_ID','client_id'),('CAKTO_CLIENT_SECRET','client_secret'),
                                                ('CAKTO_WEBHOOK_SECRET','webhook_secret')] if not getattr(billing.provider,attribute,'')]
         private.audit(actor,'overview_viewed')
-        return {'receiving':security.enabled,'counts':{'initial':counts['applications'],'pf':counts['pf_records'],
+        return {'receiving':security.enabled,'storage':{'used_bytes':stored_bytes,'limit_bytes':private.storage_max,
+                'free_bytes':__import__('shutil').disk_usage(private.files_dir).free,'reserve_bytes':private.disk_reserve},
+                'email_budget':private.email_budget() if email_provider=='resend' else None,
+                'counts':{'initial':counts['applications'],'pf':counts['pf_records'],'pending_pix':pending_pix,
                 'incomplete':uploads,'administrators':counts['administrators'],'pending_revocations':counts['provider_deletions']},
                 'retention_days':security.retention,'integrations':{
                     'email':{'configured':security.channel_ready('email'),'provider':email_provider,'required':True,

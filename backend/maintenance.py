@@ -2,6 +2,7 @@
 import argparse
 import base64
 import getpass
+import hashlib
 import hmac
 import json
 import os
@@ -38,6 +39,7 @@ def backup(private, destination):
     destination = Path(destination)
     destination.mkdir(parents=True,exist_ok=True,mode=0o700)
     os.chmod(destination,0o700)
+    previous=next(iter(sorted((p for p in destination.iterdir() if p.is_dir() and not p.is_symlink() and not p.name.startswith('.') and (p/'applications.sqlite').is_file()),reverse=True)),None)
     for attempt in range(3):
         name = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+str(uuid.uuid4())
         work = destination/('.partial-'+name)
@@ -52,7 +54,12 @@ def backup(private, destination):
                 identities = [r[0] for r in db.execute('SELECT id FROM private_files')]
             for identity in identities:
                 target = files/(identity+'.enc')
-                shutil.copyfile(private.files_dir/(identity+'.enc'),target)
+                live=private.files_dir/(identity+'.enc')
+                old=previous/'documents'/(identity+'.enc') if previous else None
+                if old and old.is_file() and not old.is_symlink() and hashlib.sha256(old.read_bytes()).digest()==hashlib.sha256(live.read_bytes()).digest():
+                    try:os.link(old,target)
+                    except OSError:shutil.copyfile(live,target)
+                else:shutil.copyfile(live,target)
                 os.chmod(target,0o600)
             final = destination/name
             work.rename(final)
@@ -130,7 +137,7 @@ def purge(private, days):
     stats['contracts_removed']=BillingStore(private).purge()
     with private.store.connect() as db:
         existing={r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        for table in ['product_sales','sales_sessions','sales_events']:
+        for table in ['product_sales','sales_sessions','sales_events','sales_reconcile_queue','email_budget']:
             if table in existing:db.execute('DELETE FROM '+table+' WHERE expires<=?',(private.clock(),))
     provider = Providers()
     with private.store.connect() as db:

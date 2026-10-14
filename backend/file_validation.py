@@ -69,10 +69,12 @@ def validate_file(raw, kind):
                     raise ValueError()
                 image.verify()
             with Image.open(io.BytesIO(raw)) as image:
-                image = ImageOps.exif_transpose(image).convert('RGB')
                 if image.width < 16 or image.height < 16:
                     raise ValueError()
+                # Resize before orientation/color copies, bounding decoded upload
+                # memory while retaining the same maximum document dimensions.
                 image.thumbnail((2400,2400))
+                image = ImageOps.exif_transpose(image).convert('RGB')
                 output = io.BytesIO()
                 image.save(output,format='JPEG',quality=88)
                 sanitized = output.getvalue()

@@ -1,13 +1,30 @@
 """Transportes documentados; nenhuma credencial ou confirmação vem do navegador."""
 import os
 import re
+import threading
+import time
 from urllib.parse import urlencode
 
 import httpx
 
+_email_rate_lock=threading.Lock()
+_email_next=0.0
+
+def email_delivery_slot():
+    """Pace this single-worker site's Resend calls below the 10/s team limit."""
+    global _email_next
+    with _email_rate_lock:
+        now=time.monotonic();reserved=max(now,_email_next);_email_next=reserved+.125
+    if reserved>now:time.sleep(reserved-now)
+
 
 class ProviderUnavailable(Exception):
     pass
+
+
+class EmailQuotaExceeded(ProviderUnavailable):
+    def __init__(self,retry_after):
+        self.retry_after=max(1,int(retry_after))
 
 
 class Providers:
@@ -46,6 +63,7 @@ class Providers:
         """Only the private server creates the challenge; the provider receives the e-mail."""
         if self.email_provider != 'resend' or not self.email_ready:
             raise ProviderUnavailable()
+        email_delivery_slot()
         result = self.request('POST', 'https://api.resend.com/emails',
             headers={'Authorization': 'Bearer '+self.resend_key, 'Idempotency-Key': 'ef-code/'+delivery_id},
             json={'from': self.email_from, 'to': [destination], 'subject': 'Confirme seu e-mail — Empréstimo Fácil',
@@ -67,6 +85,16 @@ class Providers:
             with httpx.Client(timeout=15, follow_redirects=False, transport=self.transport) as client:
                 response = client.request(method, url, **kwargs)
             if response.status_code not in {200, 201, 204}:
+                if url=='https://api.resend.com/emails' and response.status_code==429 and len(response.content)<16384:
+                    data=response.json()
+                    if isinstance(data,dict) and data.get('name') in {'daily_quota_exceeded','monthly_quota_exceeded'}:
+                        from datetime import datetime,timezone
+                        import time
+                        now=time.time();date=datetime.fromtimestamp(now,timezone.utc)
+                        until=(int(now//86400)+1)*86400
+                        if data['name']=='monthly_quota_exceeded':
+                            until=date.replace(year=date.year+(date.month==12),month=date.month%12+1,day=1,hour=0,minute=0,second=0,microsecond=0).timestamp()
+                        raise EmailQuotaExceeded(until-now)
                 raise ProviderUnavailable()
             if response.status_code == 204:
                 return None

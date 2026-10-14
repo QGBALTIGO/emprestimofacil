@@ -235,5 +235,13 @@ class ResendTests(unittest.TestCase):
         provider.email_from='contato@example.test'
         with self.assertRaises(ProviderUnavailable):provider.email_code('pessoa@example.test','123456',str(uuid.uuid4()))
 
+    def test_resend_quota_is_reported_without_exposing_provider_details(self):
+        from backend.providers import EmailQuotaExceeded
+        for name in ['daily_quota_exceeded','monthly_quota_exceeded']:
+            provider=Providers(httpx.MockTransport(lambda req:httpx.Response(429,json={'name':name,'message':'private provider details'})))
+            provider.email_provider='resend';provider.resend_key='synthetic';provider.email_from='contato@example.test'
+            with self.assertRaises(EmailQuotaExceeded) as caught:provider.email_code('pessoa@example.test','123456',str(uuid.uuid4()))
+            self.assertGreater(caught.exception.retry_after,0)
+
 
 if __name__=='__main__':unittest.main()

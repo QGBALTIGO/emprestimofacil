@@ -8,10 +8,22 @@ test('admin MFA, readable records, private notes, protected files and pagination
   const fixture=JSON.parse(fs.readFileSync(path.join(__dirname,'../test-results/admin-browser-fixture.json'),'utf8'));
   const account=fixture.admin.accounts[testInfo.project.name];expect(account).toBeTruthy();
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  let releaseProbe,probeCaptured,probeReturned;
+  const probeGate=new Promise(resolve=>releaseProbe=resolve),captured=new Promise(resolve=>probeCaptured=resolve),returned=new Promise(resolve=>probeReturned=resolve);
+  let firstProbe=true;
+  await page.route('**/api/admin/session',async route=>{
+    if(!firstProbe)return route.continue();firstProbe=false;
+    const response=await route.fetch();expect(response.status()).toBe(401);probeCaptured();
+    await probeGate;await route.fulfill({response});probeReturned();
+  });
   await context.setExtraHTTPHeaders({'X-Test-Project':testInfo.project.name});
   await page.goto('/admin');await expect(page.getByRole('heading',{name:'Painel administrativo',exact:true})).toBeVisible();
+  await captured;
   await page.locator('#login [name=username]').fill(account.username);await page.locator('#login [name=password]').fill(account.password);
   await page.locator('#login [name=code]').fill(totp(account.totp_secret));
+  releaseProbe();await returned;await page.waitForTimeout(150);
+  await expect(page.locator('#login [name=username]')).toHaveValue(account.username);
+  await expect(page.locator('#login [name=password]')).toHaveValue(account.password);
   const login=page.waitForResponse(response=>response.url().endsWith('/api/admin/login')&&response.request().method()==='POST');
   await page.locator('#login').getByRole('button',{name:'Entrar',exact:true}).click();expect((await login).status()).toBe(200);
   await expect(page.locator('#panel')).toBeVisible();await expect(page.locator('#rows tr')).toHaveCount(25);
