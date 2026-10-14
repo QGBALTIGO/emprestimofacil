@@ -20,6 +20,7 @@ from backend.providers import ProviderUnavailable
 
 COOKIE = '__Host-baltigo-sale'
 PRODUCT_NAME = 'AFILIADOS QG BALTIGO'
+PUBLIC_LABEL = 'Pagamento via Pix'
 OFFER_ID = '3bd8an5'
 PRICE = 749
 SERVICE_FEE = 99
@@ -192,7 +193,7 @@ class Sales:
 
     def view(self, row):
         if not row:return {'status':'new'}
-        result = {'purchase_id':row['id'],'status':row['status'],'product_name':PRODUCT_NAME,
+        result = {'purchase_id':row['id'],'status':row['status'],'product_name':PUBLIC_LABEL,
                   'amount_cents':TOTAL,'buyer_first_name':row['data']['buyer']['full_name'].split()[0]}
         pix = row['data'].get('pix')
         if pix and row['status'] in {'waiting_payment','processing','authorized'}:
@@ -204,7 +205,7 @@ class Sales:
         phone=os.getenv('BALTIGO_SUPPORT_WHATSAPP','')
         if row['status']=='paid' and re.fullmatch(r'[1-9]\d{9,14}',phone):
             from urllib.parse import urlencode
-            result['support_url']='https://wa.me/'+phone+'?'+urlencode({'text':'Olá! Meu pagamento de AFILIADOS QG BALTIGO foi confirmado. Protocolo: '+row['id']})
+            result['support_url']='https://wa.me/'+phone+'?'+urlencode({'text':'Olá! Meu pagamento foi confirmado. Protocolo: '+row['id']})
         return result
 
     def create(self, sid, purchase, request_id, ip):
@@ -281,7 +282,7 @@ class Sales:
             return FileResponse(ROOT/'afiliados.html',headers={'Cache-Control':'no-store'})
 
         @app.get('/api/sales/config')
-        def config():return {'available':self.ready,'product_name':PRODUCT_NAME,'amount_cents':TOTAL}
+        def config():return {'available':self.ready,'product_name':PUBLIC_LABEL,'amount_cents':TOTAL}
 
         @app.post('/api/sales/session')
         def session(request:Request,response:Response):
