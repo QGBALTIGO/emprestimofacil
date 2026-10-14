@@ -1,0 +1,12 @@
+.application-field .field-input{position:relative;min-width:0}
+.application-field .field-input input{padding-left:42px;border-radius:8px}
+.application-field .field-input-icon{position:absolute;left:13px;top:0;height:46px;width:18px;display:flex;align-items:center;justify-content:center;pointer-events:none;color:#6b8578;font-size:12px;font-weight:700;line-height:1}
+.field-input-icon svg{display:block;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.application-field input::placeholder,.application-field textarea::placeholder{color:#78877f;opacity:1;font-weight:400}
+.application-field .field-input:focus-within .field-input-icon{color:#087d32}
+.application-field .field-input input:focus{border-color:#087d32;outline:2px solid #087d3233;outline-offset:1px}
+.application-field .field-input input[aria-invalid=true]{border-color:#ad2828}
+.application-field .field-hint{font-size:11px;line-height:1.6;color:#5b7065}
+.application-field .password-input input{padding-right:46px}
+.application-field .password-toggle{border-radius:0 8px 8px 0}
+@media(max-width:599px){.application-field .field-input-icon{height:48px}.application-field .field-hint{font-size:12px}.application-field input::placeholder{font-size:14px}}

@@ -5,7 +5,7 @@
   "scripts": {
     "build": "python3 scripts/build-reference.py",
     "test": "playwright test",
-    "test:unit": "node tests/runtime.cjs && node tests/registration-runtime.cjs && node tests/submission-runtime.cjs && node tests/pf-runtime.cjs && node tests/security-runtime.cjs"
+    "test:unit": "node tests/runtime.cjs && node tests/form-fields.cjs && node tests/registration-runtime.cjs && node tests/submission-runtime.cjs && node tests/pf-runtime.cjs && node tests/security-runtime.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",

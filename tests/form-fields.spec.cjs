@@ -1,0 +1,32 @@
+const {test,expect}=require('@playwright/test');
+
+test('instruções e máscaras: digitar, colar, corrigir e apagar no cadastro',async({page},info)=>{
+ await page.goto('/#cadastro');
+ const cpf=page.locator('#reg-cpf'),phone=page.locator('#reg-phone'),date=page.locator('#reg-birth');
+ await expect(page.locator('#reg-name')).toHaveAttribute('placeholder','Seu nome completo');
+ await expect(page.locator('#reg-name-hint')).toContainText('nome e sobrenome');
+ await expect(page.locator('#reg-password-hint')).toContainText('7 caracteres');
+ await cpf.pressSequentially('11144477735');await expect(cpf).toHaveValue('111.444.777-35');
+ await cpf.evaluate(f=>f.setSelectionRange(4,5));await cpf.press('5');await expect(cpf).toHaveValue('111.544.777-35');
+ expect(await cpf.evaluate(f=>f.selectionStart)).toBe(5);
+ await cpf.evaluate(f=>f.setSelectionRange(4,4));await cpf.press('Backspace');await expect(cpf).toHaveValue('115.447.773-5');
+ expect(await cpf.evaluate(f=>f.selectionStart)).toBe(2);
+ await cpf.fill('111.444.777-35');await cpf.evaluate(f=>f.setSelectionRange(3,3));await cpf.press('Delete');await expect(cpf).toHaveValue('111.447.773-5');
+ await phone.pressSequentially('11912345678');await expect(phone).toHaveValue('(11) 91234-5678');
+ await phone.fill('+55 (21) 98765-4321');await expect(phone).toHaveValue('(21) 98765-4321');
+ await phone.evaluate(f=>f.setSelectionRange(5,5));await phone.press('Backspace');await expect(phone).toHaveValue('(29) 8765-4321');
+ await date.fill('1990-01-01');await expect(date).toHaveValue('01/01/1990');
+ await date.fill('');await date.pressSequentially('01011990');await expect(date).toHaveValue('01/01/1990');
+ await page.locator('#registration-next').click();await expect(page.locator('#reg-name')).toHaveAttribute('aria-invalid','true');
+ await expect(page.locator('#reg-name')).toHaveAttribute('aria-describedby',/reg-name-hint.*reg-name-error/);
+ await page.locator('#reg-name').fill('Pessoa de Teste');await page.locator('#reg-email').fill('pessoa@example.test');await page.locator('#reg-email-confirm').fill('pessoa@example.test');
+ await cpf.fill('11144477735');await phone.fill('11912345678');await page.locator('#reg-password').fill('Senha123');await page.locator('#reg-password-confirm').fill('Senha123');
+ await page.locator('#reg-history').check();await page.locator('#reg-terms').check();await page.locator('#registration-next').click();
+ await page.route('https://viacep.com.br/ws/**',route=>route.fulfill({contentType:'application/json',body:'{"cep":"01001-000","logradouro":"Praça da Sé","bairro":"Sé","localidade":"São Paulo","uf":"SP"}'}));
+ await page.locator('#reg-cep').pressSequentially('01001000');await expect(page.locator('#reg-cep')).toHaveValue('01001-000');await expect(page.locator('#reg-city')).toHaveValue('São Paulo');
+ await page.locator('#registration-previous').click();
+ const positions=await page.locator('#reg-name').evaluate(f=>{const input=f.getBoundingClientRect(),icon=f.parentElement.querySelector('.field-input-icon').getBoundingClientRect(),style=getComputedStyle(f);return {height:input.height,iconCenter:icon.y+icon.height/2,center:input.y+input.height/2,leftPadding:parseFloat(style.paddingLeft),font:parseFloat(style.fontSize)};});
+ expect(Math.abs(positions.iconCenter-positions.center)).toBeLessThanOrEqual(1);expect(positions.leftPadding).toBeGreaterThanOrEqual(40);if(page.viewportSize().width<600)expect(positions.font).toBeGreaterThanOrEqual(16);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+ await page.evaluate(()=>document.fonts.ready);await page.locator('#application-view').scrollIntoViewIfNeeded();await page.screenshot({path:info.outputPath('campos-'+info.project.name+'.png'),fullPage:true,animations:'disabled'});
+});

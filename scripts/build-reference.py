@@ -12,9 +12,9 @@ assert (config['maxAmount']-config['minAmount'])%config['amountStep']==0
 fonts=(root/'assets/reference/fonts.css').read_text()
 fonts=re.sub(r'url\(([^)]+)\)',lambda m:'url("assets/reference/'+Path(urlparse(m[1].strip('\"\'')).path).name+'")',fonts)
 fonts=fonts.replace('@font-face {','@font-face {\n  font-display: swap;')
-css=fonts+'\n'+(root/'src/reference.css').read_text()+'\n'+(root/'src/registration.css').read_text()+'\n'+(root/'src/pf.css').read_text()+'\n'+(root/'src/security.css').read_text()
+css=fonts+'\n'+(root/'src/reference.css').read_text()+'\n'+(root/'src/registration.css').read_text()+'\n'+(root/'src/pf.css').read_text()+'\n'+(root/'src/security.css').read_text()+'\n'+(root/'src/form-fields.css').read_text()
 body=(root/'src/reference-body.html').read_text().replace('<!-- REGISTRATION_VIEW -->',(root/'src/registration-body.html').read_text()).replace('<!-- PF_VIEW -->',(root/'src/pf-body.html').read_text())
-runtime=(root/'src/reference-runtime.js').read_text()+'\n'+(root/'src/registration-runtime.js').read_text()+'\n'+(root/'src/cep-runtime.js').read_text()+'\n'+(root/'src/pf-runtime.js').read_text()+'\n'+(root/'src/security-runtime.js').read_text()
+runtime=(root/'src/reference-runtime.js').read_text()+'\n'+(root/'src/form-fields.js').read_text()+'\n'+(root/'src/registration-runtime.js').read_text()+'\n'+(root/'src/cep-runtime.js').read_text()+'\n'+(root/'src/pf-runtime.js').read_text()+'\n'+(root/'src/security-runtime.js').read_text()
 digest=base64.b64encode(hashlib.sha256(runtime.encode()).digest()).decode()
 quote_origin=''
 if config.get('quotesUrl'):
