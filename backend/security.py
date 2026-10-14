@@ -23,7 +23,7 @@ COOKIE = '__Host-ef-session'
 
 
 class Security:
-    def __init__(self, origin, enabled, providers=None, clock=time.time, retention_days=None, bank_required=None):
+    def __init__(self, origin, enabled, providers=None, clock=time.time, retention_days=None, bank_required=None,phone_required=None):
         self.origin, self.enabled = origin, enabled
         parsed = urlparse(origin)
         self.origin_valid = bool(parsed.scheme == 'https' and parsed.netloc and not parsed.username
@@ -35,6 +35,7 @@ class Security:
         if not 1 <= self.retention <= 365:
             raise RuntimeError('DATA_RETENTION_DAYS must be between 1 and 365.')
         self.bank_required = bank_required if bank_required is not None else os.getenv('OPEN_FINANCE_REQUIRED','false') == 'true'
+        self.phone_required = phone_required if phone_required is not None else os.getenv('PHONE_VERIFICATION_REQUIRED','true') == 'true'
         self.private = None
 
     def open(self, store):
@@ -42,7 +43,11 @@ class Security:
 
     @property
     def can_receive(self):
-        return self.enabled and self.providers.verify_ready and (not self.bank_required or self.providers.bank_ready)
+        return self.enabled and self.verification_ready and (not self.bank_required or self.providers.bank_ready)
+
+    @property
+    def verification_ready(self):
+        return self.channel_ready('email') and (not self.phone_required or self.channel_ready('sms'))
 
     def channel_ready(self, channel):
         return bool(getattr(self.providers, 'email_ready' if channel == 'email' else 'sms_ready', self.providers.verify_ready))
@@ -69,18 +74,20 @@ class Security:
                 stored = stored.lower()
             if supplied != stored:
                 raise HTTPException(409,'Os dados mudaram. Confirme seus contatos e a conexão novamente.')
-        if not all(channel in state['verified'] for channel in ['email','sms']):
-            raise HTTPException(403,'Confirme o e-mail e o celular antes de enviar.')
+        required=['email','sms'] if self.phone_required else ['email']
+        if not all(channel in state['verified'] for channel in required):
+            raise HTTPException(403,'Confirme o e-mail e o celular antes de enviar.' if self.phone_required else 'Confirme o e-mail antes de enviar.')
         bank = state.get('bank',{})
         if (self.bank_required if require_bank is None else require_bank) and bank.get('status') != 'data_ready':
             raise HTTPException(403,'Conclua a conexão bancária antes de enviar.')
-        return sid, {'contact_verified_at':state['verified'].copy(), 'bank':bank.copy(), 'received_at':self.clock()}
+        return sid, {'contact_verified_at':state['verified'].copy(), 'phone_verification_required':bool(self.phone_required),
+                     'bank':bank.copy(), 'received_at':self.clock()}
 
     def state_response(self, state):
         bank = state.get('bank',{})
         return {'email_verified':'email' in state['verified'],'phone_verified':'sms' in state['verified'],
                 'bank_status':bank.get('status','not_connected'),'bank_required':bool(self.bank_required),
-                'cpf_match':bank.get('cpf_match') is True}
+                'cpf_match':bank.get('cpf_match') is True,'phone_required':bool(self.phone_required)}
 
     def apply_bank_data(self, sid):
         with self.private.locked(sid):
@@ -95,6 +102,11 @@ class Security:
             if not {'OWNERS','ACCOUNTS','TRANSACTIONS'}.issubset(set(json.loads(attempt[2]))):
                 return
             data = self.providers.bank_resources(attempt[1])
+            if (not isinstance(data,dict) or any(not isinstance(data.get(key),list) for key in ['owners','accounts','transactions'])
+                    or any(not isinstance(owner,dict) or not isinstance(owner.get('document_id'),dict)
+                           or owner['document_id'].get('document_type')=='CPF' and not isinstance(owner['document_id'].get('document_number'),str)
+                           for owner in data['owners'])):
+                raise ProviderUnavailable()
             expected = state['profile']['cpf']
             owners = [owner for owner in data['owners'] if owner.get('document_id',{}).get('document_type') == 'CPF'
                       and re.sub(r'\D','',owner.get('document_id',{}).get('document_number','')) == expected]
@@ -154,12 +166,12 @@ class Security:
 
         @app.get('/api/security/capabilities')
         def capabilities():
-            return {'verification':bool(self.enabled and self.providers.verify_ready),
+            return {'verification':bool(self.enabled and self.verification_ready),
                     'client_portal':bool(self.origin_valid),
                     'email_verification':bool(self.enabled and self.channel_ready('email')),
                     'sms_verification':bool(self.enabled and self.channel_ready('sms')),
                     'open_finance':bool(self.enabled and self.providers.bank_ready),
-                    'pf_submission':bool(self.can_receive),'bank_required':bool(self.bank_required),
+                    'pf_submission':bool(self.can_receive),'bank_required':bool(self.bank_required),'phone_required':bool(self.phone_required),
                     'sandbox':self.providers.belvo_host == 'sandbox','retention_days':self.retention}
 
         @app.post('/api/security/session')
@@ -294,7 +306,7 @@ class Security:
             attempt,sid = row[0],row[1]
             with self.private.locked(sid):
                 with self.private.store.connect() as db:
-                    current_attempt = db.execute('SELECT consumed,expires FROM bank_attempts WHERE id=?',(attempt,)).fetchone()
+                    current_attempt = db.execute('SELECT consumed,expires,link FROM bank_attempts WHERE id=?',(attempt,)).fetchone()
                     saved = db.execute('SELECT expires,payload FROM secure_sessions WHERE id=?',(sid,)).fetchone()
                 if not current_attempt or current_attempt[0] or current_attempt[1] <= self.clock():
                     raise HTTPException(400,'Este retorno expirou ou já foi utilizado.')
@@ -307,7 +319,8 @@ class Security:
                     except ValueError:
                         raise HTTPException(400,'Conexão inválida.') from None
                     remote = self.providers.bank_link(link)
-                    if remote.get('id') != link or remote.get('external_id') != attempt:
+                    if not isinstance(remote,dict):raise ProviderUnavailable()
+                    if remote.get('id') != link or remote.get('external_id') != attempt or current_attempt[2] and current_attempt[2]!=link:
                         raise HTTPException(403,'Não foi possível vincular esta conexão ao cadastro.')
                     state['bank'] = {'status':'connected','link':link,'attempt':attempt,'consented_at':state['bank'].get('consented_at')}
                     with self.private.store.connect() as db:
@@ -327,7 +340,7 @@ class Security:
         def bank_webhook(payload: dict, request: Request):
             self.available(bank=True)
             expected = 'Bearer '+self.providers.webhook_secret
-            if not hmac.compare_digest(request.headers.get('authorization',''),expected):
+            if not hmac.compare_digest(request.headers.get('authorization','').encode('utf-8'),expected.encode('utf-8')):
                 raise HTTPException(401,'Autenticação necessária.')
             link, external = payload.get('link_id',''), payload.get('external_id','')
             try:
@@ -335,7 +348,9 @@ class Security:
             except (ValueError,TypeError):
                 raise HTTPException(422,'Evento inválido.') from None
             remote = self.providers.bank_link(link)
+            if not isinstance(remote,dict):raise ProviderUnavailable()
             attempt_id = remote.get('external_id')
+            if not isinstance(attempt_id,str):raise ProviderUnavailable()
             if external and external != attempt_id:
                 raise HTTPException(403,'Evento não corresponde à conexão.')
             with self.private.store.connect() as db:
@@ -344,11 +359,15 @@ class Security:
             if not row or remote.get('id') != link:
                 return {'status':'ignored'}
             resource = payload.get('webhook_type')
+            if not isinstance(resource,str):raise HTTPException(422,'Evento inválido.')
+            if not isinstance(payload.get('data',{}),dict):raise HTTPException(422,'Evento inválido.')
             if payload.get('webhook_code') != 'historical_update' or resource not in {'OWNERS','ACCOUNTS','TRANSACTIONS'} or payload.get('data',{}).get('errors'):
                 return {'status':'ignored'}
             with self.private.locked(row[1]):
                 with self.private.store.connect() as db:
-                    current = db.execute('SELECT resources FROM bank_attempts WHERE id=?',(row[0],)).fetchone()
+                    current = db.execute('SELECT resources,link,expires FROM bank_attempts WHERE id=?',(row[0],)).fetchone()
+                    if not current or current[2]<=self.clock():return {'status':'ignored'}
+                    if current[1] and current[1]!=link:raise HTTPException(403,'Evento não corresponde à conexão.')
                     resources = set(json.loads(current[0]));resources.add(resource)
                     db.execute('UPDATE bank_attempts SET resources=?,link=? WHERE id=?',(json.dumps(sorted(resources)),link,row[0]))
             return {'status':'accepted'}

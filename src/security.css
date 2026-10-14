@@ -10,3 +10,5 @@
 .security-contact-actions{gap:8px}
 .security-status-badge{font-size:12px}
 @media(max-width:599px){.security-panel,.bank-security-panel{padding:16px}.security-contact{padding:16px}.security-contact-actions>*{width:100%}}
+
+.security-contact-grid.is-email-only{grid-template-columns:1fr}

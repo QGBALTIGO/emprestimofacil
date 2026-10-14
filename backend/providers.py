@@ -72,7 +72,9 @@ class Providers:
                 return None
             if len(response.content) > 10 * 1024 * 1024:
                 raise ProviderUnavailable()
-            return response.json()
+            result=response.json()
+            if not isinstance(result,dict):raise ProviderUnavailable()
+            return result
         except (httpx.HTTPError, ValueError, TypeError):
             raise ProviderUnavailable() from None
 
@@ -82,9 +84,10 @@ class Providers:
         result = self.request('POST', f'https://verify.twilio.com/v2/Services/{self.twilio_service}/Verifications',
                               auth=(self.twilio_account, self.twilio_token),
                               data={'To': destination, 'Channel': channel, 'Locale': 'pt-BR'})
+        if not isinstance(result,dict):raise ProviderUnavailable()
         sid = result.get('sid', '')
-        if (not re.fullmatch(r'VE[0-9a-fA-F]{32}', sid) or result.get('status') != 'pending'
-                or result.get('to', '').lower() != destination.lower() or result.get('channel') != channel
+        if (not isinstance(sid,str) or not re.fullmatch(r'VE[0-9a-fA-F]{32}', sid) or result.get('status') != 'pending'
+                or not isinstance(result.get('to'),str) or result['to'].lower() != destination.lower() or result.get('channel') != channel
                 or result.get('service_sid') != self.twilio_service):
             raise ProviderUnavailable()
         return sid
@@ -95,8 +98,9 @@ class Providers:
         result = self.request('POST', f'https://verify.twilio.com/v2/Services/{self.twilio_service}/VerificationCheck',
                               auth=(self.twilio_account, self.twilio_token),
                               data={'VerificationSid': sid, 'Code': code})
+        if not isinstance(result,dict):raise ProviderUnavailable()
         return (result.get('status') == 'approved' and result.get('sid') == sid
-                and result.get('to', '').lower() == destination.lower() and result.get('channel') == channel
+                and isinstance(result.get('to'),str) and result['to'].lower() == destination.lower() and result.get('channel') == channel
                 and result.get('service_sid') == self.twilio_service)
 
     def belvo(self, method, path, **kwargs):
@@ -119,6 +123,7 @@ class Providers:
                                    'permissions': ['REGISTER', 'ACCOUNTS', 'CREDIT_CARDS', 'CREDIT_OPERATIONS'],
                                    'identification_info': [{'type': 'CPF', 'number': profile['cpf'], 'name': profile['full_name']}],
                                    'default_consent_duration_days': 92}}})
+        if not isinstance(result,dict):raise ProviderUnavailable()
         access = result.get('access')
         if not isinstance(access, str) or not 20 <= len(access) <= 10000:
             raise ProviderUnavailable()
@@ -138,7 +143,7 @@ class Providers:
                 if not isinstance(data, dict) or not isinstance(data.get('results'), list):
                     raise ProviderUnavailable()
                 # A ignored query or unrelated result must never attach another person's data.
-                if any(row.get('link') != link for row in data['results']):
+                if any(not isinstance(row,dict) or row.get('link') != link for row in data['results']):
                     raise ProviderUnavailable()
                 rows.extend(data['results'])
                 if not data.get('next'):

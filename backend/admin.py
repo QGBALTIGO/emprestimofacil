@@ -7,7 +7,7 @@ from uuid import UUID
 import pyotp
 from fastapi import HTTPException, Request, Query
 from fastapi.responses import HTMLResponse, Response
-from pydantic import BaseModel,ConfigDict,Field,StrictStr,StringConstraints
+from pydantic import BaseModel,ConfigDict,Field,StrictStr,StringConstraints,field_validator
 
 from backend.private_store import password_hash, password_matches
 from backend.secure_models import AdminLogin
@@ -29,7 +29,13 @@ class SetupStart(BaseModel):
 
 class SetupComplete(SetupStart):
     password:Annotated[StrictStr,StringConstraints(strip_whitespace=False)]=Field(min_length=12,max_length=128,repr=False)
-    code:StrictStr=Field(pattern=r'^\d{6}$',repr=False)
+    code:StrictStr=Field(pattern=r'^[0-9]{6}$',repr=False)
+
+    @field_validator('password')
+    @classmethod
+    def meaningful_password(cls,value):
+        if not value.strip():raise ValueError('A senha não pode conter somente espaços.')
+        return value
 
 
 
@@ -99,6 +105,15 @@ def install_admin(app, security):
         security.private.audit(actor,'admin_logout')
         return {'status':'closed'}
 
+    @app.get('/api/admin/session')
+    def session_status(request:Request):
+        key,_=session(request)
+        with security.private.store.connect() as db:
+            row=db.execute('SELECT expires FROM admin_sessions WHERE id=?',(key,)).fetchone()
+        remaining=max(0,int(row[0]-security.clock())) if row else 0
+        if not remaining:raise HTTPException(401,'Sua sessão expirou. Entre novamente.')
+        return {'status':'authenticated','expires_in':remaining}
+
     @app.get('/api/admin/records')
     def records(request: Request,page:int=Query(1,ge=1,le=100000),page_size:int=Query(25,ge=1,le=100),
                 kind:Literal['all','initial','pf']='all',
@@ -108,11 +123,11 @@ def install_admin(app, security):
         now=security.clock()
         cutoff=datetime.fromtimestamp(now-security.retention*86400,timezone.utc).isoformat()
         combined='''SELECT p.id AS id,'pf' AS kind,COALESCE(r.state,p.status) AS status,p.created AS created
-            FROM pf_records p LEFT JOIN application_reviews r ON r.kind='pf' AND r.identity=p.id WHERE p.expires>?
+            FROM pf_records p LEFT JOIN application_reviews r ON r.kind='pf' AND r.identity=p.id WHERE p.expires>? AND (p.status!='uploading' OR p.created>?)
             UNION ALL SELECT a.application_id,'initial',COALESCE(r.state,'received'),CAST(strftime('%s',a.created_at) AS REAL)
             FROM applications a LEFT JOIN application_reviews r ON r.kind='initial' AND r.identity=a.application_id WHERE a.created_at>?'''
         where=" WHERE (?='all' OR kind=?) AND (?='all' OR status=?) AND instr(id,?)>0"
-        params=(now,cutoff,kind,kind,state,state,q.strip().lower())
+        params=(now,now-86400,cutoff,kind,kind,state,state,q.strip().lower())
         with security.private.store.connect() as db:
             total=db.execute('SELECT count(*) FROM ('+combined+')'+where,params).fetchone()[0]
             rows=db.execute('SELECT * FROM ('+combined+')'+where+' ORDER BY created DESC,id DESC LIMIT ? OFFSET ?',
@@ -167,21 +182,43 @@ def install_admin(app, security):
     @app.get('/api/admin/overview')
     def overview(request:Request):
         _,actor=session(request);private=security.private
+        now=security.clock();cutoff=datetime.fromtimestamp(now-security.retention*86400,timezone.utc).isoformat()
         with private.store.connect() as db:
-            counts={table:db.execute('SELECT count(*) FROM '+table).fetchone()[0] for table in
-                    ['applications','pf_records','administrators','provider_deletions']}
-            uploads=db.execute("SELECT count(*) FROM pf_records WHERE status='uploading' AND expires>?",(security.clock(),)).fetchone()[0]
+            counts={table:db.execute('SELECT count(*) FROM '+table).fetchone()[0] for table in ['administrators','provider_deletions']}
+            counts['applications']=db.execute('SELECT count(*) FROM applications WHERE created_at>?',(cutoff,)).fetchone()[0]
+            counts['pf_records']=db.execute("SELECT count(*) FROM pf_records WHERE expires>? AND (status!='uploading' OR created>?)",(now,now-86400)).fetchone()[0]
+            uploads=db.execute("SELECT count(*) FROM pf_records WHERE status='uploading' AND expires>? AND created>?",(now,now-86400)).fetchone()[0]
         billing,sales=app.state.billing,app.state.sales
+        provider=security.providers
+        def absent(items):return [key for key,attribute in items if not getattr(provider,attribute,'')]
+        twilio=[('TWILIO_ACCOUNT_SID','twilio_account'),('TWILIO_AUTH_TOKEN','twilio_token'),('TWILIO_VERIFY_SERVICE_SID','twilio_service')]
+        email_provider=getattr(provider,'email_provider','twilio')
+        email_missing=absent([('RESEND_API_KEY','resend_key'),('EMAIL_FROM','email_from')]) if email_provider=='resend' else absent(twilio)
+        cakto_missing=[key for key,attribute in [('CAKTO_CLIENT_ID','client_id'),('CAKTO_CLIENT_SECRET','client_secret'),
+                                               ('CAKTO_WEBHOOK_SECRET','webhook_secret')] if not getattr(billing.provider,attribute,'')]
         private.audit(actor,'overview_viewed')
         return {'receiving':security.enabled,'counts':{'initial':counts['applications'],'pf':counts['pf_records'],
                 'incomplete':uploads,'administrators':counts['administrators'],'pending_revocations':counts['provider_deletions']},
                 'retention_days':security.retention,'integrations':{
-                    'email':{'configured':security.channel_ready('email'),'provider':getattr(security.providers,'email_provider','twilio')},
-                    'sms':{'configured':security.channel_ready('sms'),'provider':'twilio'},
+                    'email':{'configured':security.channel_ready('email'),'provider':email_provider,'required':True,
+                             'missing':email_missing,'documentation_url':'https://resend.com/docs' if email_provider=='resend' else 'https://www.twilio.com/docs/verify',
+                             'requirements':['Conta própria e chave de envio.','Domínio/remetente verificado e entrega do código homologada.' if email_provider=='resend' else 'E-mail habilitado no Verify com integração SendGrid e remetente verificado.']},
+                    'sms':{'configured':security.channel_ready('sms'),'provider':'twilio','required':security.phone_required,
+                           'missing':absent(twilio),'documentation_url':'https://www.twilio.com/docs/verify',
+                           'requirements':['Conta própria, serviço Verify e saldo para mensagens.','Entrega de SMS homologada em telefone real.']},
                     'open_finance':{'configured':bool(security.providers.bank_ready),'environment':security.providers.belvo_host,
-                                    'required':security.bank_required},
-                    'cakto':{'configured':bool(billing.provider.configured),'enabled':bool(billing.provider.can_charge)},
-                    'affiliate_sales':{'enabled':bool(sales.ready)}},
+                                    'required':security.bank_required,'missing':absent([('BELVO_SECRET_ID','belvo_id'),('BELVO_SECRET_PASSWORD','belvo_password'),
+                                        ('BELVO_WEBHOOK_TOKEN','webhook_secret'),('COMPANY_NAME','company_name'),('COMPANY_TERMS_URL','terms_url')]),
+                                    'documentation_url':'https://developers.belvo.com/',
+                                    'requirements':['Conta/contratação e credenciais próprias da Belvo.','Teste de consentimento, titularidade, dados e revogação antes de produção.']},
+                    'cakto':{'configured':bool(billing.provider.configured),'enabled':bool(security.enabled and billing.provider.can_charge),
+                             'missing':cakto_missing,'documentation_url':'https://docs.cakto.com.br/',
+                             'requirements':['Conta ativa, OAuth com escopos adequados e webhook assinado.','Oferta em BRL com valor correto e autorização da Cakto para a operação.','Parcelas apenas de contratos reais assinados e já desembolsados.']},
+                    'affiliate_sales':{'enabled':bool(sales.ready),'documentation_url':'https://docs.cakto.com.br/',
+                                       'requirements':['Compra independente de afiliados com oferta e webhook próprios.']}},
+                'configuration':{'private_file':'/etc/emprestimofacil/backend.env',
+                                 'instruction':'O operador insere as credenciais somente no arquivo privado da VPS, com permissão 0600, e reinicia apenas o serviço emprestimofacil. Não cole chaves neste painel.',
+                                 'phone_required':bool(security.phone_required)},
                 'note':'Configuração não confirma entrega de códigos, conexão bancária ou pagamento. Valide os provedores antes de ativar.'}
 
     def bootstrap(body,request):

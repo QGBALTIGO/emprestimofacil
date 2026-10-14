@@ -16,3 +16,5 @@ var/
 .venv/
 *.sqlite
 *.sqlite-*
+
+backend-round2*.log

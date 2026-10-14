@@ -38,5 +38,6 @@ sales_digest=base64.b64encode(hashlib.sha256(sales_runtime.encode()).digest()).d
 sales_policy="default-src 'self'; script-src 'sha256-"+sales_digest+"'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
 sales='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="'+html.escape(sales_policy,quote=True)+'"><title>AFILIADOS QG BALTIGO | Compra via Pix</title><style>'+(root/'src/form-fields.css').read_text(encoding='utf-8')+'\n'+(root/'src/sales.css').read_text(encoding='utf-8')+'</style></head><body>'+(root/'src/sales-body.html').read_text(encoding='utf-8')+'<script>'+sales_runtime+'</script></body></html>'
 (out/'afiliados.html').write_text(sales,encoding='utf-8')
+(out/'termos.html').write_text((root/'src/terms.html').read_text(encoding='utf-8'),encoding='utf-8')
 if out!=root:shutil.copytree(root/'assets',out/'assets',dirs_exist_ok=True)
 print(json.dumps({'output':str(out/'index.html'),'bytes':len(result.encode()),'quotes':len(config['quotes']),'contact_configured':bool(config['contact']['whatsapp'] or config['contact']['applicationUrl'])}))

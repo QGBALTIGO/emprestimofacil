@@ -69,7 +69,8 @@ class PrivateStore:
                 if 'owner_email_digest' not in columns:db.execute("ALTER TABLE pf_records ADD COLUMN owner_email_digest TEXT NOT NULL DEFAULT ''")
                 for identity,payload in db.execute('SELECT id,payload FROM pf_records').fetchall():
                     applicant=self.unseal('pf:'+identity,payload)['applicant']
-                    owner=self.digest('pf-phone',applicant['phone'])
+                    attestations=self.unseal('pf:'+identity,payload).get('server_attestations',{})
+                    owner=self.digest('pf-phone',applicant['phone']) if 'sms' in attestations.get('contact_verified_at',{}) else ''
                     email=self.digest('pf-email',applicant['email'])
                     db.execute('UPDATE pf_records SET owner_digest=?,owner_email_digest=? WHERE id=?',(owner,email,identity))
             db.execute('CREATE INDEX IF NOT EXISTS pf_owner ON pf_records(owner_digest,created)')
@@ -161,11 +162,12 @@ class PrivateStore:
             content['required_files'] = model.required_files()
             now = self.clock()
             applicant=content['applicant']
-            owner=self.digest('pf-phone',applicant['phone']);email=self.digest('pf-email',applicant['email'])
-            if db.execute("SELECT 1 FROM pf_records WHERE (owner_digest=? OR owner_email_digest=?) AND status='uploading' AND expires>? AND created>?",
+            owner=self.digest('pf-phone',applicant['phone']) if 'sms' in attestations.get('contact_verified_at',{}) else ''
+            email=self.digest('pf-email',applicant['email'])
+            if db.execute("SELECT 1 FROM pf_records WHERE ((owner_digest<>'' AND owner_digest=?) OR owner_email_digest=?) AND status='uploading' AND expires>? AND created>?",
                           (owner,email,now,now-86400)).fetchone():
                 raise HTTPException(409,'Já existe um cadastro documental em andamento. Retome o envio anterior.')
-            if db.execute('SELECT count(*) FROM pf_records WHERE (owner_digest=? OR owner_email_digest=?) AND created>?',(owner,email,now-86400)).fetchone()[0]>=self.pf_daily_limit:
+            if db.execute("SELECT count(*) FROM pf_records WHERE ((owner_digest<>'' AND owner_digest=?) OR owner_email_digest=?) AND created>?",(owner,email,now-86400)).fetchone()[0]>=self.pf_daily_limit:
                 raise HTTPException(429,'Limite diário de cadastros documentais atingido. Tente novamente amanhã.',headers={'Retry-After':'86400'})
             db.execute('INSERT INTO pf_records(id,session_id,request_id,digest,status,created,expires,payload,owner_digest,owner_email_digest) VALUES (?,?,?,?,?,?,?,?,?,?)',
                        (identity,sid,request_id,fingerprint,'uploading',now,now+retention_days*86400,
@@ -175,8 +177,8 @@ class PrivateStore:
 
     def pf(self, identity, sid=None):
         with self.store.connect() as db:
-            row = db.execute('SELECT session_id,status,payload,expires FROM pf_records WHERE id=?', (identity,)).fetchone()
-        if not row or row[3] <= self.clock() or sid is not None and row[0] != sid:
+            row = db.execute('SELECT session_id,status,payload,expires,created FROM pf_records WHERE id=?', (identity,)).fetchone()
+        if not row or row[3] <= self.clock() or row[1]=='uploading' and row[4]<=self.clock()-86400 or sid is not None and row[0] != sid:
             raise HTTPException(404, 'Cadastro não encontrado.')
         return self.unseal('pf:'+identity,row[2]), row[1]
 
@@ -205,6 +207,10 @@ class PrivateStore:
         old = None
         try:
             with self.store.connect() as db:
+                db.execute('BEGIN IMMEDIATE')
+                record_state=db.execute('SELECT status,expires,created FROM pf_records WHERE id=?',(record,)).fetchone()
+                if not record_state or record_state[1]<=self.clock() or record_state[0]=='uploading' and record_state[2]<=self.clock()-86400:raise HTTPException(404,'Cadastro não encontrado.')
+                if record_state[0]!='uploading':raise HTTPException(409,'Cadastro já concluído.')
                 old = db.execute('SELECT id FROM private_files WHERE record_id=? AND kind=?', (record,kind)).fetchone()
                 db.execute('INSERT OR REPLACE INTO private_files VALUES (?,?,?,?,?)', (identity,record,kind,extension,len(raw)))
         except Exception:
@@ -233,7 +239,12 @@ class PrivateStore:
             self.audit(sid,'pf_received',identity)
 
     def delete_pf(self, identity, actor):
+        with self.locked('pf:'+identity),self.locked('private-storage'):
+            self._delete_pf(identity,actor)
+
+    def _delete_pf(self, identity, actor):
         with self.store.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
             paths = [self.files_dir/(r[0]+'.enc') for r in db.execute('SELECT id FROM private_files WHERE record_id=?',(identity,))]
             db.execute('DELETE FROM private_files WHERE record_id=?',(identity,))
             db.execute('DELETE FROM pf_records WHERE id=?',(identity,))
@@ -247,6 +258,11 @@ class PrivateStore:
             db.execute('INSERT OR IGNORE INTO provider_deletions VALUES (?,?)',(link,self.clock()))
 
     def expire_session(self, key):
+        # A provider call can be in progress; serialize revocation with its write.
+        with self.locked(key):
+            self._expire_session(key)
+
+    def _expire_session(self, key):
         with self.store.connect() as db:
             links = [r[0] for r in db.execute('SELECT link FROM bank_attempts WHERE session_id=? AND link IS NOT NULL',(key,))]
             for link in links:

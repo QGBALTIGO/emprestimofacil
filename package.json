@@ -5,6 +5,9 @@
   "scripts": {
     "build": "node scripts/build.cjs",
     "test": "playwright test",
+    "test:client": "playwright test --config tests/client-playwright.config.cjs",
+    "test:admin": "playwright test --config admin-playwright.config.cjs",
+    "test:all": "npm run test:unit && npm test && npm run test:client && npm run test:admin",
     "test:unit": "node tests/runtime.cjs && node tests/form-fields.cjs && node tests/registration-runtime.cjs && node tests/submission-runtime.cjs && node tests/pf-runtime.cjs && node tests/security-runtime.cjs"
   },
   "devDependencies": {

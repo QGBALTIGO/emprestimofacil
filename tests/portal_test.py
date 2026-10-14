@@ -122,6 +122,15 @@ class PortalTests(unittest.TestCase):
         self.assertFalse(self.client.get('/api/admin/overview').json()['receiving'])
         self.assertEqual(self.post('/api/applications',payload(),**{'Idempotency-Key':str(uuid.uuid4())}).status_code,503)
 
+    def test_admin_session_expiry_metadata_requires_mfa_and_exposes_no_identity(self):
+        self.assertEqual(self.client.get('/api/admin/session').status_code,401)
+        self.admin()
+        data=self.client.get('/api/admin/session').json()
+        self.assertEqual(set(data),{'status','expires_in'});self.assertEqual(data['status'],'authenticated')
+        self.assertTrue(899<=data['expires_in']<=900)
+        self.now+=900
+        self.assertEqual(self.client.get('/api/admin/session').status_code,401)
+
     def test_expired_or_replaced_invite_and_restore_invalidate_sessions(self):
         target=Path(self.temp.name)/'operator/invite.txt'
         first=administrator_invite(self.private,'owner@example.test','https://example.test',target).read_text().strip().split('#setup=')[1]
@@ -168,6 +177,7 @@ class PortalTests(unittest.TestCase):
         with self.store.connect() as db:db.execute("UPDATE pf_records SET status='received' WHERE id=?",(identity,))
         with self.assertRaises(HTTPException) as error:self.private.create_pf('another-verified-session',model,str(uuid.uuid4()),{},30)
         self.assertEqual(error.exception.status_code,429)
+        with self.store.connect() as db:db.execute("UPDATE pf_records SET status='uploading' WHERE id=?",(identity,))
         self.private.storage_max=8
         self.private.save_file(identity,'front',b'12345678','jpg')
         self.private.save_file(identity,'front',b'87654321','jpg')

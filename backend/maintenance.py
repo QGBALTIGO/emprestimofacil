@@ -149,7 +149,7 @@ def purge(private, days):
 
 
 def create_administrator(private,username,password,secret):
-    if not 3 <= len(username) <= 80 or not 12 <= len(password) <= 128 or len(secret) < 32:
+    if not 3 <= len(username) <= 80 or not 12 <= len(password) <= 128 or not password.strip() or len(secret) < 32:
         raise ValueError('Use usuário de 3–80 caracteres, senha de 12–128 e segredo TOTP válido.')
     with private.store.connect() as db:
         db.execute('INSERT INTO administrators(username,password,totp) VALUES (?,?,?)',

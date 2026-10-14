@@ -125,6 +125,7 @@ class Sales:
 
     def checked_offer(self):
         self.outbound();offer = self.provider.offer(self.offer_id)
+        if not isinstance(offer,dict):raise ProviderUnavailable()
         if (offer.get('id') != self.offer_id or offer.get('status') != 'active'
                 or offer.get('type') != 'unique' or offer.get('currency') != 'BRL'
                 or offer.get('name') != PRODUCT_NAME or cents(offer.get('price')) != PRICE):
@@ -135,12 +136,16 @@ class Sales:
 
     def validate_order(self, row, order, customer=True):
         data = row['data'];buyer = data['buyer']
+        if (not isinstance(order,dict) or not isinstance(order.get('product'),dict) or not isinstance(order.get('offer'),dict)
+                or not isinstance(order.get('status'),str) or order.get('currency','BRL')!='BRL'):
+            raise ProviderUnavailable()
         if (order.get('id') != row['order_id'] or order.get('paymentMethod') != 'pix'
                 or order.get('status') not in STATUSES or cents(order.get('amount')) != PRICE
                 or order.get('product',{}).get('id') != data['product_id']
                 or order.get('offer',{}).get('id') != data['offer_id']):raise ProviderUnavailable()
         if customer:
             person = order.get('customer',{})
+            if not isinstance(person,dict) or not isinstance(order.get('metadata',{}),dict):raise ProviderUnavailable()
             reference = order.get('sck') or order.get('metadata',{}).get('sck')
             if (person.get('docType') != 'cpf' or person.get('docNumber') != buyer['cpf']
                     or str(person.get('email','')).lower() != buyer['email']
@@ -283,7 +288,15 @@ class Sales:
             raw=await request.body()
             if not self.provider.valid_webhook(raw,request.headers.get('x-cakto-timestamp'),request.headers.get('x-cakto-signature')):
                 raise HTTPException(401,'Assinatura inválida.')
-            try:data=json.loads(raw)['data'];order_id=str(uuid.UUID(data['id']))
+            try:
+                envelope=json.loads(raw)
+                if not isinstance(envelope,dict):raise ValueError()
+                if not isinstance(envelope.get('event'),str):raise ValueError()
+                if envelope.get('event') not in {'pix_gerado','purchase_approved','refund','chargeback','refund_requested','purchase_refused','purchase_canceled'}:
+                    return {'status':'ignored'}
+                data=envelope['data']
+                if not isinstance(data,dict) or not isinstance(data.get('metadata',{}),dict) or not isinstance(data.get('sck',''),str):raise ValueError()
+                order_id=str(uuid.UUID(data['id']))
             except (ValueError,TypeError,KeyError):raise HTTPException(400,'Evento inválido.') from None
             def receive_event():
                 event=self.private.digest('sales-webhook',hashlib.sha256(raw).hexdigest())
@@ -293,7 +306,10 @@ class Sales:
                     found=db.execute('SELECT session_id FROM product_sales WHERE order_id=? OR request_id=?',(order_id,reference)).fetchone()
                 if not found:return {'status':'ignored'}
                 with self.private.locked('sale:'+found[0]):
+                    with self.private.store.connect() as db:
+                        if db.execute('SELECT 1 FROM sales_events WHERE id=?',(event,)).fetchone():return {'status':'duplicate'}
                     current=self.row(found[0])
+                    if not current:return {'status':'ignored'}
                     if current['order_id'] and current['order_id']!=order_id:raise HTTPException(409,'Pedido divergente.')
                     current['order_id']=order_id
                     try:self.reconcile(current,True)

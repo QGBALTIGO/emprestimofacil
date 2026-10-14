@@ -7,6 +7,7 @@ test('compra independente identificada, indisponível sem API e cadastro PF livr
  await page.route('**/api/sales/config',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({available:false,product_name:base.product_name,amount_cents:749})}));
  await page.goto('/afiliados.html');await expect(page.locator('h1')).toContainText('QG BALTIGO');await expect(page.locator('#sale-price')).toHaveText('R$ 7,49');
  await expect(page.locator('#sale-service')).toContainText('ainda não está disponível');await expect(page.locator('#sale-generate')).toBeDisabled();await expect(page.locator('.sale-separation')).toContainText('não faz parte do cadastro PF');
+ await expect(page.locator('#affiliate-form')).toBeHidden();await expect(page.locator('#sale-official-checkout')).toBeVisible();await expect(page.locator('#sale-official-checkout')).toContainText('R$ 8,48');await expect(page.locator('#sale-official-checkout a')).toHaveAttribute('href','https://pay.cakto.com.br/3bd8an5_676851');
  await expect(page.locator('#sale-name')).toHaveAttribute('placeholder','Seu nome completo');await expect(page.locator('#sale-qr')).toBeHidden();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
  await page.screenshot({path:info.outputPath('afiliados-'+info.project.name+'.png'),fullPage:true,animations:'disabled'});

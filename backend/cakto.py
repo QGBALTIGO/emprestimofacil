@@ -102,7 +102,7 @@ class Cakto:
         return self.wire('GET','orders/'+identity+'/',headers=self.headers({'read','orders'}))
 
     def valid_webhook(self,raw,timestamp,signature):
-        if len(self.webhook_secret)<16 or not re.fullmatch(r'\d{10,12}',timestamp or ''):return False
+        if len(self.webhook_secret)<16 or not isinstance(timestamp,str) or not isinstance(signature,str) or not re.fullmatch(r'[0-9]{10,12}',timestamp):return False
         if abs(self.clock()-int(timestamp))>300:return False
         expected='v1='+hmac.new(self.webhook_secret.encode(),timestamp.encode()+b'.'+raw,hashlib.sha256).hexdigest()
-        return any(hmac.compare_digest(s.strip(),expected) for s in (signature or '').split(','))
+        return any(hmac.compare_digest(s.strip().encode('utf-8'),expected.encode('ascii')) for s in signature.split(','))

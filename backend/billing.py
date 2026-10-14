@@ -35,12 +35,16 @@ class Billing:
         self.security.private.limit('cakto-outbound','account',50,60)
 
     def validate_order(self,order,identity,item,customer,attempt,verify_customer=True):
+        if (not isinstance(order,dict) or not isinstance(order.get('product'),dict) or not isinstance(order.get('offer'),dict)
+                or not isinstance(order.get('status'),str) or order.get('currency','BRL')!='BRL'):
+            raise ProviderUnavailable()
         if (order.get('id')!=identity or order.get('paymentMethod')!='pix' or order.get('status') not in STATUSES
                 or cents(order.get('amount'))!=item['amount_cents']
-                or order.get('product',{}).get('id')!=item['product_id']):
+                or order['product'].get('id')!=item['product_id'] or order['offer'].get('id')!=item['offer_id']):
             raise ProviderUnavailable()
         if verify_customer:
             supplied=order.get('customer',{})
+            if not isinstance(supplied,dict):raise ProviderUnavailable()
             if (supplied.get('docType')!='cpf' or supplied.get('docNumber')!=customer['cpf']
                     or str(supplied.get('email','')).lower()!=customer['email'] or order.get('sck')!=attempt):
                 raise ProviderUnavailable()
@@ -83,6 +87,7 @@ class Billing:
                 if status not in {'canceled','refused','blocked'}:
                     return self.view(identity)
             self.outbound();offer=self.provider.offer(item['offer_id'])
+            if not isinstance(offer,dict):raise ProviderUnavailable()
             if (offer.get('id')!=item['offer_id'] or offer.get('product')!=item['product_id'] or offer.get('status')!='active'
                     or offer.get('type')!='unique' or offer.get('currency')!='BRL' or cents(offer.get('price'))!=item['amount_cents']):
                 raise HTTPException(409,'A oferta de pagamento precisa corresponder ao valor e à moeda desta parcela.')
@@ -136,8 +141,11 @@ class Billing:
             raise HTTPException(401,'Assinatura de pagamento inválida.')
         try:
             event=json.loads(raw)
-            if event.get('event') not in {'pix_gerado','purchase_approved','refund','chargeback','refund_requested','purchase_refused','purchase_canceled'}:return {'status':'ignored'}
+            if not isinstance(event,dict):raise ValueError()
+            if not isinstance(event.get('event'),str):raise ValueError()
+            if event['event'] not in {'pix_gerado','purchase_approved','refund','chargeback','refund_requested','purchase_refused','purchase_canceled'}:return {'status':'ignored'}
             details=event['data'];order_id=str(uuid.UUID(details['id']))
+            if not isinstance(details,dict) or not isinstance(details.get('sck',''),str):raise ValueError()
         except (ValueError,KeyError,TypeError):raise HTTPException(400,'Evento de pagamento inválido.') from None
         digest=self.security.private.digest('cakto-event',hashlib.sha256(raw).hexdigest())
         with self.store.store.connect() as db:
@@ -146,6 +154,8 @@ class Billing:
         if not row:return {'status':'ignored'}
         identity,attempt,bound=row
         with self.security.private.locked('bill:'+identity):
+            with self.store.store.connect() as db:
+                if db.execute('SELECT 1 FROM billing_events WHERE id=?',(digest,)).fetchone():return {'status':'duplicate'}
             contract,item,_,_=self.store.installment(identity)
             self.outbound();order=self.provider.order(order_id)
             self.validate_order(order,order_id,item,contract['customer'],attempt)
@@ -210,7 +220,7 @@ class Billing:
         def listing(request:Request,page:int=Query(1,ge=1,le=100000),page_size:int=Query(25,ge=1,le=100)):
             _,actor=app.state.require_admin(request)
             with self.store.store.connect() as db:
-                base='FROM billing_installments i JOIN billing_contracts c ON c.id=i.contract_id WHERE c.expires>?'
+                base="FROM billing_installments i JOIN billing_contracts c ON c.id=i.contract_id WHERE (c.expires>? OR EXISTS(SELECT 1 FROM billing_installments pending WHERE pending.contract_id=c.id AND pending.status!='paid'))"
                 total=db.execute('SELECT count(*) '+base,(self.security.clock(),)).fetchone()[0]
                 ids=[r[0] for r in db.execute('SELECT i.id '+base+' ORDER BY c.created DESC,c.id DESC,i.number LIMIT ? OFFSET ?',
                                               (self.security.clock(),page_size,(page-1)*page_size))]

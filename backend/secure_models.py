@@ -52,7 +52,7 @@ class CodeRequest(Model):
 
 
 class CodeCheck(CodeRequest):
-    code: StrictStr = Field(pattern=r'^\d{6}$', repr=False)
+    code: StrictStr = Field(pattern=r'^[0-9]{6}$', repr=False)
 
 
 class BankConsent(Model):
@@ -62,7 +62,7 @@ class BankConsent(Model):
 class AdminLogin(Model):
     username: StrictStr = Field(min_length=3, max_length=80)
     password: Annotated[StrictStr, StringConstraints(strip_whitespace=False)] = Field(min_length=12, max_length=128, repr=False)
-    code: StrictStr = Field(pattern=r'^\d{6}$', repr=False)
+    code: StrictStr = Field(pattern=r'^[0-9]{6}$', repr=False)
 
 
 class Account(Model):

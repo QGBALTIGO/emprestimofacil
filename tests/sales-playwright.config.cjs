@@ -1,0 +1,3 @@
+const {defineConfig}=require('@playwright/test'),path=require('node:path');
+const base=require('../playwright.config.cjs'),root=path.resolve(__dirname,'..');
+module.exports=defineConfig({...base,testDir:__dirname,testMatch:'sales.spec.cjs',workers:2,outputDir:path.join(root,'test-results-sales-final'),reporter:[['list'],['json',{outputFile:path.join(root,'test-results/sales-results-final.json')}]],use:{...base.use,baseURL:'http://127.0.0.1:4196'},webServer:{command:(process.platform==='win32'?'python -X utf8':'python3')+' scripts/serve-tests.py 4196',cwd:root,url:'http://127.0.0.1:4196',reuseExistingServer:false,timeout:30000}});

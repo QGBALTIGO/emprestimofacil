@@ -255,12 +255,12 @@ class Store:
                 raise HTTPException(409, 'Não foi possível receber esta solicitação. Revise os dados.') from None
             return application_id
 
-def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=time.time, retention_days=None, bank_required=None, cakto=None, sales_provider=None):
+def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=time.time, retention_days=None, bank_required=None, cakto=None, sales_provider=None, phone_required=None):
     origin = origin or os.getenv('PUBLIC_ORIGIN', '')
     ready = legal_ready if legal_ready is not None else os.getenv('APPLICATIONS_ENABLED', 'false') == 'true'
     limits, lock = {}, threading.Lock()
     from backend.security import Security
-    security = Security(origin, ready, providers, clock, retention_days, bank_required)
+    security = Security(origin, ready, providers, clock, retention_days, bank_required,phone_required)
     from backend.billing import Billing
     billing = Billing(security,cakto)
     from backend.sales import Sales
@@ -349,6 +349,21 @@ def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=
     @app.get('/')
     def home():
         return FileResponse(ROOT/'index.html')
+
+    @app.get('/termos.html')
+    def terms():
+        return FileResponse(ROOT/'termos.html')
+
+    @app.middleware('http')
+    async def secure_responses(request:Request,call_next):
+        # Also protects responses returned early by request guards (403/413/503).
+        response=await call_next(request)
+        response.headers['X-Content-Type-Options']='nosniff'
+        response.headers['X-Frame-Options']='DENY'
+        response.headers['Referrer-Policy']='no-referrer'
+        if request.url.path.startswith('/api/'):
+            response.headers['Cache-Control']='no-store'
+        return response
 
     app.mount('/assets', StaticFiles(directory=ROOT/'assets'), name='assets')
     return app
