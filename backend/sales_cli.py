@@ -24,9 +24,9 @@ def main():
             valid=(offer.get('id')==os.getenv('CAKTO_SALES_OFFER_ID',OFFER_ID) and offer.get('name')==PRODUCT_NAME
                    and offer.get('status')=='active' and offer.get('type')=='unique'
                    and offer.get('currency')=='BRL' and cents(offer.get('price'))==PRICE)
-            print(json.dumps({'authenticated':connection['authenticated'],'sales_enabled':provider.can_charge,
+            print(json.dumps({'authenticated':connection['authenticated'],'sales_enabled':provider.can_charge,'payment_scopes_ready':connection['can_charge'],
                               'offer_matches':valid,'product_name':PRODUCT_NAME,'amount_cents':PRICE}))
-            if not valid:sys.exit(1)
+            if not valid or not connection['can_charge']:sys.exit(1)
             return
         identity=str(uuid.UUID(args.purchase));key=base64.b64decode(os.environ['DATA_ENCRYPTION_KEY'],validate=True)
         store=Store(Path(os.environ['APPLICATIONS_DB']),key);security=Security(os.environ['PUBLIC_ORIGIN'],False)

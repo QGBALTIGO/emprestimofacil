@@ -1,5 +1,7 @@
 """Independent product sales; synthetic customers/provider, never live charges."""
 import copy
+import contextlib
+import io
 import hashlib
 import hmac
 import json
@@ -103,6 +105,13 @@ class SalesTests(unittest.TestCase):
         with self.store.connect() as db:
             self.assertEqual(db.execute('SELECT count(*) FROM product_sales').fetchone()[0],0)
             self.assertEqual(db.execute('SELECT count(*) FROM sales_sessions').fetchone()[0],0)
+    def test_preflight_rejects_credentials_without_payment_permissions(self):
+        from backend.sales_cli import main
+        self.provider.check_connection=lambda:{'authenticated':True,'can_charge':False}
+        with patch('backend.sales_cli.SalesCakto',return_value=self.provider),patch('sys.argv',['sales_cli','check']),contextlib.redirect_stdout(io.StringIO()) as output:
+            with self.assertRaises(SystemExit) as error:main()
+            self.assertEqual(error.exception.code,1)
+            self.assertFalse(json.loads(output.getvalue())['payment_scopes_ready'])
     def test_sales_flag_does_not_require_loan_collection_approval(self):
         with patch.dict('os.environ',{'CAKTO_CLIENT_ID':'test','CAKTO_CLIENT_SECRET':'test','CAKTO_WEBHOOK_SECRET':'test-secret-minimum-16','CAKTO_SALES_ENABLED':'true','CAKTO_LOAN_COLLECTION_APPROVED':'false','CAKTO_PAYMENTS_ENABLED':'false'}):
             self.assertTrue(SalesCakto().can_charge);self.assertFalse(Cakto().can_charge)
