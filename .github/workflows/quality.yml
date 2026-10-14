@@ -23,12 +23,21 @@ jobs:
           cache: npm
       - name: Instalar dependências de teste
         run: npm ci --ignore-scripts
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Instalar a API isolada para testar os portais
+        run: python -m pip install -r backend/requirements.txt
       - name: Reconstruir e verificar funções
         run: npm run build && npm run test:unit
       - name: Instalar o navegador da bateria
         run: npx playwright install --with-deps ${{ matrix.browser }}
       - name: Testar celular, tablet e PC
         run: npm test
+        env:
+          TEST_BROWSER: ${{ matrix.browser }}
+      - name: Testar portais com autenticação e armazenamento reais isolados
+        run: npm run test:client && npm run test:admin
         env:
           TEST_BROWSER: ${{ matrix.browser }}
       - uses: actions/upload-artifact@v5
@@ -38,6 +47,8 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            test-results-client/
+            test-results-admin/
           retention-days: 30
 
   backend:

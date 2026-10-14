@@ -66,7 +66,7 @@ class BackendTests(unittest.TestCase):
             self.assertNotIn(secret.encode(),raw)
         changed = payload();changed['loan']['amount_requested']=2250
         self.assertEqual(self.post(changed,key=request_key).status_code,409)
-        self.assertEqual(self.post().status_code,409)
+        self.assertEqual(self.post().status_code,201)
 
     def test_invalid_input_never_written_or_echoed(self):
         cases=[('applicant','cpf','11111111111'),('applicant','birth_date','2020-01-01'),('applicant','email','bad'),('income','monthly_income',1199),('loan','installment_frequency','monthly'),('consents','terms',False),('bank_account','bank','999'),('address','state','XX')]

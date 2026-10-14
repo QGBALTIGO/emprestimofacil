@@ -10,8 +10,9 @@ import sqlite3
 import threading
 import time
 import uuid
+import asyncio
 from collections import deque
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager, contextmanager, suppress
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Annotated
@@ -22,6 +23,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, StringConstraints, field_validator, model_validator
+from backend.passwords import password_hash
 
 ROOT = Path(__file__).resolve().parents[1]
 BANKS = {'237', '104', '341', '033', '001', '323', '260'}
@@ -190,24 +192,42 @@ class Store:
     def __init__(self, path, key):
         self.path = Path(path)
         self.key = key
+        self._connection_lock=threading.RLock()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
         with self.connect() as db:
             db.execute('''CREATE TABLE IF NOT EXISTS applications (
                 application_id TEXT PRIMARY KEY, request_key TEXT UNIQUE NOT NULL,
-                request_digest TEXT NOT NULL, cpf_digest TEXT UNIQUE NOT NULL,
-                email_digest TEXT UNIQUE NOT NULL, nonce BLOB NOT NULL, ciphertext BLOB NOT NULL,
+                request_digest TEXT NOT NULL, cpf_digest TEXT NOT NULL,
+                email_digest TEXT NOT NULL, nonce BLOB NOT NULL, ciphertext BLOB NOT NULL,
                 password_hash TEXT NOT NULL, created_at TEXT NOT NULL)''')
+            # A pre-registration has not proved ownership of an identity. Only the
+            # request key is unique, so another person's unverified submission
+            # cannot reserve a CPF/e-mail and block its rightful owner.
+            schema = db.execute("SELECT sql FROM sqlite_master WHERE name='applications'").fetchone()[0]
+            if re.search(r'(?:cpf_digest|email_digest)\s+TEXT\s+UNIQUE',schema,re.I):
+                db.execute('BEGIN IMMEDIATE')
+                db.execute('ALTER TABLE applications RENAME TO applications_unverified_legacy')
+                db.execute('''CREATE TABLE applications (
+                    application_id TEXT PRIMARY KEY, request_key TEXT UNIQUE NOT NULL,
+                    request_digest TEXT NOT NULL, cpf_digest TEXT NOT NULL, email_digest TEXT NOT NULL,
+                    nonce BLOB NOT NULL, ciphertext BLOB NOT NULL, password_hash TEXT NOT NULL, created_at TEXT NOT NULL)''')
+                db.execute('INSERT INTO applications SELECT * FROM applications_unverified_legacy')
+                db.execute('DROP TABLE applications_unverified_legacy')
+            db.execute('CREATE INDEX IF NOT EXISTS applications_email ON applications(email_digest)')
+            db.execute('CREATE INDEX IF NOT EXISTS applications_created ON applications(created_at)')
         os.chmod(self.path, 0o600)
 
     @contextmanager
     def connect(self):
-        db = sqlite3.connect(self.path, timeout=10)
-        try:
-            with db:
-                yield db
-        finally:
-            db.close()
+        # One bounded writer in this single-worker service. Do not make SQLite
+        # contend among dozens of threadpool connections during a campaign.
+        with self._connection_lock:
+            db = sqlite3.connect(self.path, timeout=10)
+            try:
+                db.execute('PRAGMA secure_delete=ON')
+                with db:yield db
+            finally:db.close()
 
     def digest(self, purpose, value):
         return hmac.new(self.key, (purpose + '\0' + value).encode(), hashlib.sha256).hexdigest()
@@ -217,35 +237,35 @@ class Store:
         canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(',', ':'))
         fingerprint = self.digest('request', canonical)
         with self.connect() as db:
+            prior=db.execute('SELECT application_id,request_digest FROM applications WHERE request_key=?',(request_key,)).fetchone()
+        if prior:
+            if not hmac.compare_digest(prior[1],fingerprint):raise HTTPException(409,'Não foi possível receber esta solicitação. Revise os dados.')
+            return prior[0]
+        application_id=str(uuid.uuid4())
+        encoded_password=password_hash(payload.pop('password'))
+        created_at=datetime.now(timezone.utc).isoformat();payload['received_at']=created_at
+        if attestations is not None:payload['server_attestations']=attestations
+        nonce=secrets.token_bytes(12)
+        ciphertext=AESGCM(self.key).encrypt(nonce,json.dumps(payload,ensure_ascii=False).encode(),application_id.encode())
+        with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             prior = db.execute('SELECT application_id, request_digest FROM applications WHERE request_key = ?', (request_key,)).fetchone()
             if prior:
                 if not hmac.compare_digest(prior[1], fingerprint):
                     raise HTTPException(409, 'Não foi possível receber esta solicitação. Revise os dados.')
                 return prior[0]
-            application_id = str(uuid.uuid4())
-            password = payload.pop('password')
-            salt = secrets.token_bytes(16)
-            derived = hashlib.scrypt(password.encode(), salt=salt, n=32768, r=8, p=1, maxmem=64*1024*1024, dklen=32)
-            password_hash = 'scrypt$32768$8$1$' + base64.b64encode(salt).decode() + '$' + base64.b64encode(derived).decode()
-            created_at = datetime.now(timezone.utc).isoformat()
-            payload['received_at'] = created_at
-            if attestations is not None:
-                payload['server_attestations'] = attestations
-            nonce = secrets.token_bytes(12)
-            ciphertext = AESGCM(self.key).encrypt(nonce, json.dumps(payload, ensure_ascii=False).encode(), application_id.encode())
             try:
-                db.execute('INSERT INTO applications VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', (application_id, request_key, fingerprint, self.digest('cpf', application.applicant.cpf), self.digest('email', application.applicant.email), nonce, ciphertext, password_hash, created_at))
+                db.execute('INSERT INTO applications VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', (application_id, request_key, fingerprint, self.digest('cpf', application.applicant.cpf), self.digest('email', application.applicant.email), nonce, ciphertext, encoded_password, created_at))
             except sqlite3.IntegrityError:
                 raise HTTPException(409, 'Não foi possível receber esta solicitação. Revise os dados.') from None
             return application_id
 
-def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=time.time, retention_days=None, bank_required=None, cakto=None, sales_provider=None):
+def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=time.time, retention_days=None, bank_required=None, cakto=None, sales_provider=None, phone_required=None):
     origin = origin or os.getenv('PUBLIC_ORIGIN', '')
     ready = legal_ready if legal_ready is not None else os.getenv('APPLICATIONS_ENABLED', 'false') == 'true'
     limits, lock = {}, threading.Lock()
     from backend.security import Security
-    security = Security(origin, ready, providers, clock, retention_days, bank_required)
+    security = Security(origin, ready, providers, clock, retention_days, bank_required,phone_required)
     from backend.billing import Billing
     billing = Billing(security,cakto)
     from backend.sales import Sales
@@ -266,13 +286,20 @@ def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=
         security.open(app.state.store)
         billing.open()
         sales.open()
-        yield
+        task=asyncio.create_task(sales.worker()) if sales.ready and sales.provider.configured else None
+        try:yield
+        finally:
+            if task:
+                task.cancel()
+                with suppress(asyncio.CancelledError):await task
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.security = security
     app.state.billing = billing
     app.state.sales = sales
     security.install(app)
+    from backend.client import install_client
+    install_client(app,security)
     billing.install(app)
     sales.install(app)
 
@@ -326,12 +353,27 @@ def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=
         return {'application_id':application_id, 'status':'received'}
 
     @app.get('/api/health')
-    def health():
+    async def health():
         return {'status':'ok', 'receiving':bool(security.enabled)}
 
     @app.get('/')
     def home():
         return FileResponse(ROOT/'index.html')
+
+    @app.get('/termos.html')
+    def terms():
+        return FileResponse(ROOT/'termos.html')
+
+    @app.middleware('http')
+    async def secure_responses(request:Request,call_next):
+        # Also protects responses returned early by request guards (403/413/503).
+        response=await call_next(request)
+        response.headers['X-Content-Type-Options']='nosniff'
+        response.headers['X-Frame-Options']='DENY'
+        response.headers['Referrer-Policy']='no-referrer'
+        if request.url.path.startswith('/api/'):
+            response.headers['Cache-Control']='no-store'
+        return response
 
     app.mount('/assets', StaticFiles(directory=ROOT/'assets'), name='assets')
     return app

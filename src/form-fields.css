@@ -10,3 +10,12 @@
 .application-field .password-input input{padding-right:46px}
 .application-field .password-toggle{border-radius:0 8px 8px 0}
 @media(max-width:599px){.application-field .field-input-icon{height:48px}.application-field .field-hint{font-size:12px}.application-field input::placeholder{font-size:14px}}
+
+.application-field>label{font-size:13px;font-weight:600;color:#314d3f}
+.application-field input,.application-field select,.application-field textarea{font-size:16px;border-radius:8px;border-color:#b9cbbf;color:#18322b}
+.application-field input::placeholder,.application-field textarea::placeholder{font-size:14px;color:#64756c}
+.application-field .field-input-icon{color:#526e5e}
+.application-field small,.application-field .field-hint{font-size:12px;color:#4d6259}
+.application-field .field-error{font-size:12px;color:#9e2525}
+.application-field .field-input input:focus{outline:3px solid #087d32;outline-offset:2px}
+.application-field input:disabled,.application-field select:disabled{background:#f4f6f4;color:#526a61}

@@ -5,6 +5,7 @@ import os
 import re
 import secrets
 import uuid
+import asyncio
 from urllib.parse import urlparse
 from datetime import datetime,timezone
 
@@ -62,6 +63,9 @@ class Purchase(Model):
         if not self.terms_accepted:raise ValueError('Confirm purchase')
         return self
 
+class PaymentCheck(Model):
+    automatic:StrictBool=False
+
 
 class SalesCakto(Cakto):
     @property
@@ -107,6 +111,8 @@ class Sales:
                     order_id TEXT UNIQUE, created REAL NOT NULL, expires REAL NOT NULL, payload BLOB NOT NULL);
                 CREATE INDEX IF NOT EXISTS sales_by_session ON product_sales(session_id);
                 CREATE TABLE IF NOT EXISTS sales_events (id TEXT PRIMARY KEY, expires REAL NOT NULL);
+                CREATE TABLE IF NOT EXISTS sales_reconcile_queue (
+                    sale_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, due REAL NOT NULL, expires REAL NOT NULL);
             ''')
 
     @property
@@ -178,7 +184,7 @@ class Sales:
 
     def reconcile(self, row, force=False):
         if not row['order_id']:return
-        if not force and row['data'].get('checked_at',0)>self.security.clock()-15:return
+        if not force and row['data'].get('checked_at',0)>self.security.clock()-300:return
         self.outbound();order = self.provider.order(row['order_id'])
         if cents(order.get('amount'))!=TOTAL:
             row['status']='price_mismatch';row['data']['checked_at']=self.security.clock();self.save(row)
@@ -194,7 +200,7 @@ class Sales:
     def view(self, row):
         if not row:return {'status':'new'}
         result = {'purchase_id':row['id'],'status':row['status'],'product_name':PUBLIC_LABEL,
-                  'amount_cents':TOTAL,'buyer_first_name':row['data']['buyer']['full_name'].split()[0]}
+                  'amount_cents':TOTAL,'buyer_first_name':row['data']['buyer']['full_name'].split()[0],'check_after':300}
         pix = row['data'].get('pix')
         if pix and row['status'] in {'waiting_payment','processing','authorized'}:
             expiration = timestamp(pix['expirationDate'])
@@ -208,6 +214,41 @@ class Sales:
             result['support_url']='https://wa.me/'+phone+'?'+urlencode({'text':'Olá! Meu pagamento foi confirmado. Protocolo: '+row['id']})
         return result
 
+    def enqueue(self,row):
+        with self.private.store.connect() as db:
+            db.execute('INSERT OR IGNORE INTO sales_reconcile_queue VALUES (?,?,?,?)',
+                       (row['id'],self.session_id_for(row['id']),self.security.clock()+3,self.security.clock()+7*86400))
+
+    def session_id_for(self,identity):
+        with self.private.store.connect() as db:
+            found=db.execute('SELECT session_id FROM product_sales WHERE id=?',(identity,)).fetchone()
+        if not found:raise ValueError('Unknown sale')
+        return found[0]
+
+    def drain_one(self):
+        now=self.security.clock()
+        with self.private.store.connect() as db:
+            db.execute('DELETE FROM sales_reconcile_queue WHERE expires<=?',(now,))
+            found=db.execute('SELECT sale_id,session_id FROM sales_reconcile_queue WHERE due<=? ORDER BY due LIMIT 1',(now,)).fetchone()
+        if not found:return False
+        identity,sid=found
+        with self.private.locked('sale:'+sid):
+            row=self.row(sid)
+            if row and row['id']==identity:
+                try:self.reconcile(row,True)
+                except (ProviderUnavailable,HTTPException):
+                    with self.private.store.connect() as db:db.execute('UPDATE sales_reconcile_queue SET due=? WHERE sale_id=?',(now+30,identity))
+                    return False
+            with self.private.store.connect() as db:db.execute('DELETE FROM sales_reconcile_queue WHERE sale_id=?',(identity,))
+        return True
+
+    async def worker(self):
+        while True:
+            try:await run_in_threadpool(self.drain_one)
+            except Exception:
+                __import__('logging').getLogger(__name__).warning('Conciliação Pix temporariamente indisponível.')
+            await asyncio.sleep(2)
+
     def create(self, sid, purchase, request_id, ip):
         self.available()
         with self.private.locked('sale:'+sid):
@@ -219,6 +260,8 @@ class Sales:
                 self.reconcile(previous);return self.view(previous)
             self.private.limit('sales-create',sid,2,3600)
             product_id=self.checked_offer();buyer=purchase.buyer.model_dump()
+            # Refuse a full provider budget before recording an in-flight charge.
+            self.outbound()
             body={'paymentMethod':'pix','customer':{'name':buyer['full_name'],'email':buyer['email'],
                   'phone':'55'+buyer['phone'],'docType':'cpf','docNumber':buyer['cpf'],
                   'fingerprint':'sale_'+secrets.token_hex(16),'ip':ip},
@@ -235,7 +278,7 @@ class Sales:
                 except __import__('sqlite3').IntegrityError:
                     raise HTTPException(409,'Esta tentativa já está vinculada a outra sessão.') from None
             try:
-                self.outbound();order=self.provider.create_pix(body,request_id)
+                order=self.provider.create_pix(body,request_id)
                 row['order_id']=str(uuid.UUID(order['id']));row['status']='review'
                 # Preserve the encrypted provider response for recovery, even when
                 # validation blocks presentation. Never expose unvalidated QR data.
@@ -251,8 +294,9 @@ class Sales:
                 self.reconcile(row,True)
                 self.private.audit(sid,'affiliate_pix_created',identity)
                 return self.view(row)
-            except (ProviderUnavailable,ValueError,TypeError,KeyError):
+            except (ProviderUnavailable,ValueError,TypeError,KeyError,HTTPException):
                 row['status']='review' if row['order_id'] else 'uncertain';self.save(row)
+                if row['order_id']:self.enqueue(row)
                 raise HTTPException(503,'A geração do Pix aguarda conferência. Nenhuma nova cobrança será criada automaticamente.') from None
 
     def install(self, app):
@@ -271,7 +315,8 @@ class Sales:
                         if len(raw)>(131072 if webhook else 4096):
                             return JSONResponse({'detail':'Solicitação muito grande.'},status_code=413)
                     request._body=bytes(raw)
-                try:self.private.limit('sales-requests',request.client.host if request.client else '',60,60)
+                try:
+                    if not webhook and request.url.path!='/api/sales/config':await run_in_threadpool(self.private.limit,'sales-requests',request.client.host if request.client else '',60,60)
                 except HTTPException as error:return JSONResponse({'detail':error.detail},status_code=error.status_code,headers=error.headers)
             return await call_next(request)
 
@@ -282,7 +327,7 @@ class Sales:
             return FileResponse(ROOT/'afiliados.html',headers={'Cache-Control':'no-store'})
 
         @app.get('/api/sales/config')
-        def config():return {'available':self.ready,'product_name':PUBLIC_LABEL,'amount_cents':TOTAL}
+        async def config():return {'available':self.ready,'product_name':PUBLIC_LABEL,'amount_cents':TOTAL}
 
         @app.post('/api/sales/session')
         def session(request:Request,response:Response):
@@ -306,12 +351,12 @@ class Sales:
             except ProviderUnavailable:raise HTTPException(503,'Não foi possível conferir a oferta na Cakto. Tente mais tarde.') from None
 
         @app.post('/api/sales/check')
-        def check(request:Request):
+        def check(body:PaymentCheck,request:Request):
             self.available();sid=self.session(request)
             self.private.limit('sales-check',sid,10,60)
             with self.private.locked('sale:'+sid):
                 row=self.row(sid)
-                try:self.reconcile(row) if row else None
+                try:self.reconcile(row,not body.automatic) if row else None
                 except ProviderUnavailable:raise HTTPException(503,'Não foi possível confirmar o pagamento. Aguarde e tente novamente.') from None
                 return self.view(row)
 
@@ -364,8 +409,12 @@ class Sales:
                     if not current:return {'status':'ignored'}
                     if current['order_id'] and current['order_id']!=order_id:raise HTTPException(409,'Pedido divergente.')
                     current['order_id']=order_id
+                    self.save(current)
                     try:self.reconcile(current,True)
-                    except ProviderUnavailable:raise HTTPException(503,'Conciliação pendente.') from None
+                    except (ProviderUnavailable,HTTPException):
+                        self.enqueue(current)
+                        with self.private.store.connect() as db:db.execute('INSERT OR IGNORE INTO sales_events VALUES (?,?)',(event,self.security.clock()+86400))
+                        return {'status':'queued'}
                     with self.private.store.connect() as db:db.execute('INSERT OR IGNORE INTO sales_events VALUES (?,?)',(event,self.security.clock()+86400))
                 return {'status':'received'}
             return await run_in_threadpool(receive_event)

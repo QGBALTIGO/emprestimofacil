@@ -5,6 +5,8 @@ __pycache__/
 *.zip
 playwright-report/
 test-results/
+test-results-*/
+frontend*.log
 
 var/
 .env
@@ -14,3 +16,5 @@ var/
 .venv/
 *.sqlite
 *.sqlite-*
+
+backend-round2*.log

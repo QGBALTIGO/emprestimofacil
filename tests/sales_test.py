@@ -173,4 +173,33 @@ class SalesTests(unittest.TestCase):
         self.assertEqual(self.client.post(route,json=envelope,headers={'X-Cakto-Timestamp':str(int(self.now)),'X-Cakto-Signature':'v1='+'0'*64}).status_code,401)
         self.assertEqual(self.client.post(route,json={**envelope,'data':{'id':str(uuid.uuid4()),'sck':None}}).json()['status'],'ignored')
 
+    def test_automatic_polling_reuses_authoritative_check_but_manual_refreshes(self):
+        self.start();self.buy();self.provider.status='paid'
+        with patch.object(self.provider,'order',wraps=self.provider.order) as reads:
+            for _ in range(8):
+                result=self.client.post('/api/sales/check',json={'automatic':True},headers=self.headers)
+                self.assertEqual(result.json()['status'],'waiting_payment')
+            self.assertEqual(reads.call_count,0)
+            self.assertEqual(self.check().json()['status'],'paid');self.assertEqual(reads.call_count,1)
+
+    def test_authenticated_webhook_is_durable_when_provider_is_unavailable(self):
+        self.start();self.buy();identity=next(iter(self.provider.orders));self.provider.status='paid'
+        envelope={'secret':self.provider.webhook_secret,'event':'purchase_approved','data':{'id':identity}}
+        route='/api/sales/cakto/webhook'
+        with patch.object(self.provider,'order',side_effect=ProviderUnavailable()):
+            self.assertEqual(self.client.post(route,json=envelope).json()['status'],'queued')
+            self.assertEqual(self.client.post(route,json=envelope).json()['status'],'duplicate')
+            self.now+=4;self.assertFalse(self.app.state.sales.drain_one())
+            with self.store.connect() as db:self.assertEqual(db.execute('SELECT count(*) FROM sales_reconcile_queue').fetchone()[0],1)
+        self.now+=31;self.assertTrue(self.app.state.sales.drain_one())
+        with self.store.connect() as db:self.assertEqual(db.execute('SELECT count(*) FROM sales_reconcile_queue').fetchone()[0],0)
+        self.assertEqual(self.check().json()['status'],'paid')
+
+    def test_provider_budget_refuses_before_creating_an_uncertain_purchase(self):
+        self.start();private=self.app.state.security.private
+        with self.store.connect() as db:db.execute('INSERT OR REPLACE INTO security_limits VALUES (?,?,?)',(private.digest('limit:cakto-outbound','account'),self.now,49))
+        self.assertEqual(self.buy().status_code,429);self.assertEqual(self.provider.calls,[])
+        with self.store.connect() as db:self.assertEqual(db.execute('SELECT count(*) FROM product_sales').fetchone()[0],0)
+        self.now+=61;self.assertEqual(self.buy().status_code,200);self.assertEqual(len(self.provider.calls),1)
+
 if __name__=='__main__':unittest.main()
