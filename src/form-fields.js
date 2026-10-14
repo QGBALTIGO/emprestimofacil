@@ -76,7 +76,7 @@
     address_proof_date:['calendar','DD/MM/AAAA','Informe a data de emissão do comprovante.','date'],
     instagram:['link','instagram.com/seuusuario','Cole o link do seu perfil no Instagram.']
   };
-  for(const form of [d.getElementById('registration-form'),d.getElementById('pf-form')]){
+  for(const form of [d.getElementById('registration-form'),d.getElementById('pf-form'),d.getElementById('affiliate-form')]){
     if(!form)continue;
     for(const field of form.querySelectorAll('.application-field input, .application-field textarea')){
       const contact=field.name.match(/^contact_(name|phone)_\d$/),spec=contact?(contact[1]==='name'?['person','Nome completo do familiar','']:['phone','(00) 00000-0000','Informe o telefone com DDD.','phone']):specs[field.name];

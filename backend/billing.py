@@ -1,12 +1,9 @@
 """Installment collection after an existing loan has been signed and disbursed."""
-import base64
 import hashlib
-import io
 import json
 import uuid
 from datetime import datetime,timezone
 
-import qrcode
 from fastapi import HTTPException,Request,Response
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
@@ -15,25 +12,11 @@ from backend.billing_models import Invite
 from backend.billing_store import BillingStore
 from backend.cakto import Cakto,STATUSES,cents
 from backend.providers import ProviderUnavailable
+from backend.payment_utils import qr_image, timestamp
 
 COOKIE='__Host-ef-installment'
 
 
-def timestamp(value):
-    try:
-        parsed=datetime.fromisoformat(value.replace('Z','+00:00'))
-        if parsed.tzinfo is None:raise ValueError()
-        return parsed.timestamp()
-    except (ValueError,TypeError,AttributeError):raise ProviderUnavailable() from None
-
-
-def qr_image(code):
-    if not isinstance(code,str) or not 20<=len(code.encode('utf8'))<=2000 or not code.startswith('000201'):
-        raise ProviderUnavailable()
-    qr=qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=6,border=4)
-    qr.add_data(code);qr.make(fit=True);buffer=io.BytesIO()
-    qr.make_image(fill_color='black',back_color='white').save(buffer,format='PNG')
-    return 'data:image/png;base64,'+base64.b64encode(buffer.getvalue()).decode()
 
 
 class Billing:

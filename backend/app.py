@@ -240,7 +240,7 @@ class Store:
                 raise HTTPException(409, 'Não foi possível receber esta solicitação. Revise os dados.') from None
             return application_id
 
-def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=time.time, retention_days=None, bank_required=None, cakto=None):
+def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=time.time, retention_days=None, bank_required=None, cakto=None, sales_provider=None):
     origin = origin or os.getenv('PUBLIC_ORIGIN', '')
     ready = legal_ready if legal_ready is not None else os.getenv('APPLICATIONS_ENABLED', 'false') == 'true'
     limits, lock = {}, threading.Lock()
@@ -248,6 +248,8 @@ def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=
     security = Security(origin, ready, providers, clock, retention_days, bank_required)
     from backend.billing import Billing
     billing = Billing(security,cakto)
+    from backend.sales import Sales
+    sales = Sales(security,sales_provider)
 
     @asynccontextmanager
     async def lifespan(app):
@@ -263,13 +265,16 @@ def create_app(store=None, origin=None, legal_ready=None, providers=None, clock=
             app.state.store = store
         security.open(app.state.store)
         billing.open()
+        sales.open()
         yield
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.security = security
     app.state.billing = billing
+    app.state.sales = sales
     security.install(app)
     billing.install(app)
+    sales.install(app)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request, exc):

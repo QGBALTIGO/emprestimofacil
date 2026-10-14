@@ -122,3 +122,7 @@ O backup faz cópia consistente do SQLite e documentos referenciados, todos já 
 Os testes usam provedores substituídos, sem SMS, e-mail, banco ou decisão de crédito real. A câmera, contatos e localização são emulados nos navegadores; é necessário homologar entrega dos códigos e captura em aparelhos físicos por HTTPS antes da ativação. O servidor testa também uploads, sessão, limites, CPF divergente, MFA, isolamento, retenção e restauração.
 
 A integração de parcelas com a Cakto possui configuração, contrato, credenciais e retenção próprios. Leia [CAKTO.md](CAKTO.md) antes de ativá-la. Não utilize as contas ou dados sintéticos da suíte para gerar cobranças de produção.
+
+## Compra independente de afiliados
+
+A página `/afiliados.html` e os endpoints `/api/sales/` vendem o produto **AFILIADOS QG BALTIGO**, por R$ 7,49. Leia [CAKTO_SALES.md](CAKTO_SALES.md) para a ativação via ambiente da VPS. Esta compra não interfere nos cadastros ou na análise de empréstimos.
