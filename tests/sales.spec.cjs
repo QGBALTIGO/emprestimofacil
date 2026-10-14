@@ -3,6 +3,18 @@ const fixture=require('./fixtures-sale-pix.json');
 const id='12345678-1234-1234-1234-123456789012';
 const base={purchase_id:id,product_name:'AFILIADOS QG BALTIGO',amount_cents:749,buyer_first_name:'Pessoa',status:'waiting_payment'};
 
+test('GitHub Pages abre Cakto sem depender de API inexistente',async({page})=>{
+ const fs=require('node:fs'),path=require('node:path');let apiCalls=0;
+ page.on('request',request=>{if(new URL(request.url()).pathname.startsWith('/api/'))apiCalls++;});
+ await page.route('https://qgbaltigo.github.io/emprestimofacil/afiliados.html',route=>route.fulfill({contentType:'text/html',body:fs.readFileSync(path.join(__dirname,'../afiliados.html'),'utf8')}));
+ await page.goto('https://qgbaltigo.github.io/emprestimofacil/afiliados.html');
+ const checkout=page.locator('#sale-official-checkout a');
+ await expect(checkout).toBeVisible();await expect(checkout).toHaveAttribute('href','https://pay.cakto.com.br/3bd8an5_676851');
+ await expect(page.locator('#affiliate-form')).toBeHidden();await expect(page.locator('#sale-intro')).toContainText('checkout oficial da Cakto');
+ await expect(page.locator('#sale-official-checkout')).toContainText('R$ 8,48');expect(apiCalls).toBe(0);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+});
+
 test('compra independente identificada, indisponível sem API e cadastro PF livre',async({page},info)=>{
  await page.route('**/api/sales/config',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({available:false,product_name:base.product_name,amount_cents:749})}));
  await page.goto('/afiliados.html');await expect(page.locator('h1')).toContainText('QG BALTIGO');await expect(page.locator('#sale-price')).toHaveText('R$ 7,49');

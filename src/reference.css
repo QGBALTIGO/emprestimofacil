@@ -180,3 +180,41 @@ dialog dl>div{font-size:13px}
 @media(max-width:899px){#main-navigation{max-height:calc(100dvh - 74px);overflow-y:auto;overscroll-behavior:contain}.header-inner{height:74px}.hero-grid{gap:26px}.hero .hero-copy h1{font-size:42px}.hero .hero-lead{font-size:14px}.quote-card.reference-quote{padding:20px}.about-differences-list{gap:28px}.loan-disclosures{padding:16px}}
 @media(max-width:699px){.hero{padding:24px 0 30px}.hero-grid{gap:24px;max-width:540px}.hero .hero-copy{padding:0}.hero .hero-copy h1{font-size:clamp(36px,9vw,44px);line-height:1.14}.hero .hero-lead{font-size:14px;max-width:420px}.hero .hero-copy>.eyebrow{margin-bottom:10px}.how-it-works .steps{grid-template-columns:1fr;gap:24px}.about-differences-list{grid-template-columns:1fr}.loan-disclosures{margin-top:14px}}
 @media(max-width:359px){.quote-card.reference-quote{padding:18px}.reference-quote .term-grid{gap:6px}.reference-quote .term-grid strong{font-size:16px}.reference-quote .conditions-box{padding:14px}.loan-disclosures{padding:14px}}
+
+/* The business introduction uses the site's existing colors and local type. */
+.business-benefits .benefits-grid{padding-top:32px;padding-bottom:32px;align-items:start}
+.business-benefits .benefits-grid h3{font:700 17px/1.45 var(--font);margin:14px 0 8px}
+.business-benefits .benefits-grid p{font-size:13px;line-height:1.75;max-width:290px}
+.business-pix{padding:68px 0;background:#fffdf5;border-bottom:1px solid var(--line)}
+.business-pix-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:64px;align-items:center}
+.business-pix-art img{display:block;width:100%;height:auto;max-width:540px;margin:auto}
+.business-pix .eyebrow,.business-trust .eyebrow{color:var(--green);font:700 11px/1.6 var(--font);letter-spacing:1.4px;text-transform:uppercase;display:block;margin-bottom:14px}
+.business-pix h2,.business-trust h2{font:700 clamp(28px,3.2vw,40px)/1.2 var(--font);color:var(--blue);letter-spacing:-1px;margin:0 0 20px}
+.business-pix h2 em,.business-trust h2 em{font-style:normal;color:var(--green)}
+.business-pix-copy>p,.business-section-heading>p,.business-audience-intro>p{color:var(--muted);font-size:14px;line-height:1.8;margin:0 0 24px}
+.business-checks{display:grid;gap:16px;list-style:none;padding:0;margin:0 0 26px}
+.business-checks li{display:flex;align-items:start;gap:12px;color:var(--muted);font-size:13px;line-height:1.8}
+.business-checks svg{width:23px;height:23px;flex-shrink:0;margin-top:2px;stroke:var(--green);stroke-width:2.3;fill:none}
+.business-checks strong{color:var(--ink)}
+.business-cta{display:inline-flex;gap:22px;align-items:center;justify-content:center;min-height:50px;background:var(--yellow);border-radius:8px;padding:12px 22px;font:700 14px/1.5 var(--font);color:var(--ink);text-decoration:none}
+.business-cta:hover{background:#efbd20}
+.business-cta svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2}
+.business-pix-copy>.business-small{font-size:11px;line-height:1.7;margin:14px 0 0;max-width:430px}
+.business-trust{padding:68px 0;background:#fff}
+.business-section-heading{text-align:center;max-width:630px;margin:0 auto 32px}
+.business-section-heading h2{margin-bottom:14px}
+.business-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
+.business-facts article{padding:24px 20px;background:var(--soft);border:1px solid var(--line);border-radius:12px}
+.business-fact-number{display:block;color:var(--green-dark);font:700 clamp(19px,2vw,24px)/1.4 var(--font);letter-spacing:-.5px;margin-bottom:12px}
+.business-facts h3{font:700 13px/1.6 var(--font);color:var(--ink);margin:0 0 8px}
+.business-facts p,.business-audience-cards p{color:var(--muted);font-size:12px;line-height:1.8;margin:0}
+.business-audience{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:54px;margin-top:62px;padding-top:54px;border-top:1px solid var(--line);align-items:center}
+.business-audience h2{font-size:32px}
+.business-audience .text-link{color:var(--green);font-size:13px;min-height:44px;display:inline-flex;align-items:center}
+.business-audience-cards{display:grid;gap:12px}
+.business-audience-cards article{display:grid;grid-template-columns:44px minmax(0,1fr);gap:2px 16px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.business-audience-icon{grid-row:span 2;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#fff4bd;color:var(--green-dark);font:700 13px/1 var(--font)}
+.business-audience-cards h3{font:700 15px/1.5 var(--font);color:var(--ink);margin:0 0 2px}
+@media(max-width:1099px){.business-pix-grid{gap:34px}.business-facts{grid-template-columns:repeat(2,minmax(0,1fr))}.business-fact-number{font-size:24px}.business-audience{gap:32px}}
+@media(max-width:699px){.business-benefits .benefits-grid{gap:26px;padding:28px 0}.business-benefits .benefits-grid p{max-width:none}.business-pix,.business-trust{padding:40px 0}.business-pix-grid{grid-template-columns:1fr;gap:24px}.business-pix-art{order:2}.business-pix-art img{max-width:340px}.business-pix h2,.business-trust h2{font-size:30px}.business-pix h2 br{display:none}.business-cta{width:100%}.business-section-heading{text-align:left;margin-bottom:24px}.business-facts{gap:12px}.business-facts article{padding:18px 14px}.business-fact-number{font-size:19px}.business-facts h3{font-size:12px}.business-facts p{font-size:11px}.business-audience{grid-template-columns:1fr;gap:24px;margin-top:36px;padding-top:34px}.business-audience-intro>p{margin-bottom:12px}.business-audience-cards article{padding:16px}.business-audience h2{font-size:28px}}
+@media(max-width:359px){.business-facts{grid-template-columns:1fr}.business-fact-number{font-size:22px}.business-pix h2,.business-trust h2{font-size:28px}}
