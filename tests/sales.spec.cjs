@@ -3,23 +3,25 @@ const fixture=require('./fixtures-sale-pix.json');
 const id='12345678-1234-1234-1234-123456789012';
 const base={purchase_id:id,product_name:'AFILIADOS QG BALTIGO',amount_cents:749,buyer_first_name:'Pessoa',status:'waiting_payment'};
 
-test('GitHub Pages abre Cakto sem depender de API inexistente',async({page})=>{
- const fs=require('node:fs'),path=require('node:path');let apiCalls=0;
- page.on('request',request=>{if(new URL(request.url()).pathname.startsWith('/api/'))apiCalls++;});
- await page.route('https://qgbaltigo.github.io/emprestimofacil/afiliados.html',route=>route.fulfill({contentType:'text/html',body:fs.readFileSync(path.join(__dirname,'../afiliados.html'),'utf8')}));
+test('GitHub Pages abre checkout próprio sem visitar Cakto',async({page})=>{
+ const fs=require('node:fs'),path=require('node:path');let caktoCalls=0;
+ page.on('request',request=>{if(new URL(request.url()).hostname.endsWith('cakto.com.br'))caktoCalls++;});
+ const markup=fs.readFileSync(path.join(__dirname,'../afiliados.html'),'utf8');
+ await page.route('https://qgbaltigo.github.io/emprestimofacil/afiliados.html',route=>route.fulfill({contentType:'text/html',body:markup}));
+ await page.route('https://emprestimofacil.pro/afiliados.html',route=>route.fulfill({contentType:'text/html',body:markup}));
+ await page.route('https://emprestimofacil.pro/api/sales/**',route=>route.fulfill({contentType:'application/json',body:JSON.stringify(route.request().url().endsWith('/config')?{available:true,product_name:base.product_name,amount_cents:749}:{status:'new'})}));
  await page.goto('https://qgbaltigo.github.io/emprestimofacil/afiliados.html');
- const checkout=page.locator('#sale-official-checkout a');
- await expect(checkout).toBeVisible();await expect(checkout).toHaveAttribute('href','https://pay.cakto.com.br/3bd8an5_676851');
- await expect(page.locator('#affiliate-form')).toBeHidden();await expect(page.locator('#sale-intro')).toContainText('checkout oficial da Cakto');
- await expect(page.locator('#sale-official-checkout')).toContainText('R$ 8,48');expect(apiCalls).toBe(0);
+ await expect(page).toHaveURL('https://emprestimofacil.pro/afiliados.html');
+ await expect(page.locator('#sale-generate')).toBeEnabled();await expect(page.locator('#affiliate-form')).toBeVisible();
+ await expect(page.locator('a[href*="cakto.com.br"]')).toHaveCount(0);expect(caktoCalls).toBe(0);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
 });
 
 test('compra independente identificada, indisponível sem API e cadastro PF livre',async({page},info)=>{
  await page.route('**/api/sales/config',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({available:false,product_name:base.product_name,amount_cents:749})}));
  await page.goto('/afiliados.html');await expect(page.locator('h1')).toContainText('QG BALTIGO');await expect(page.locator('#sale-price')).toHaveText('R$ 7,49');
- await expect(page.locator('#sale-service')).toContainText('ainda não está disponível');await expect(page.locator('#sale-generate')).toBeDisabled();await expect(page.locator('.sale-separation')).toContainText('não faz parte do cadastro PF');
- await expect(page.locator('#affiliate-form')).toBeHidden();await expect(page.locator('#sale-official-checkout')).toBeVisible();await expect(page.locator('#sale-official-checkout')).toContainText('R$ 8,48');await expect(page.locator('#sale-official-checkout a')).toHaveAttribute('href','https://pay.cakto.com.br/3bd8an5_676851');
+ await expect(page.locator('#sale-service')).toContainText('temporariamente indisponível');await expect(page.locator('#sale-generate')).toBeDisabled();await expect(page.locator('.sale-separation')).toContainText('Independente do empréstimo');
+ await expect(page.locator('#affiliate-form')).toBeVisible();await expect(page.locator('a[href*="cakto.com.br"]')).toHaveCount(0);
  await expect(page.locator('#sale-name')).toHaveAttribute('placeholder','Seu nome completo');await expect(page.locator('#sale-qr')).toBeHidden();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
  await page.screenshot({path:info.outputPath('afiliados-'+info.project.name+'.png'),fullPage:true,animations:'disabled'});

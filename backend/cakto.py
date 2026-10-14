@@ -30,6 +30,7 @@ def cents(value):
 
 class Cakto:
     BASE = 'https://api.cakto.com.br/public_api/'
+    TOKEN_SCOPES = frozenset({'read','write','offers','orders','payments'})
 
     def __init__(self,transport=None,clock=time.time):
         self.transport,self.clock = transport,clock
@@ -73,13 +74,16 @@ class Cakto:
         if not self.configured:raise ProviderUnavailable()
         with self._lock:
             if self._expires<=self.clock()+60:
-                token=self.wire('POST','token/',data={'client_id':self.client_id,'client_secret':self.client_secret})
+                token=self.wire('POST','token/',data={'client_id':self.client_id,'client_secret':self.client_secret,
+                    'scope':' '.join(sorted(self.TOKEN_SCOPES))})
                 if (token.get('token_type')!='Bearer' or not isinstance(token.get('access_token'),str)
                         or not 10<=len(token['access_token'])<=10000 or type(token.get('expires_in')) is not int
                         or not 120<=token['expires_in']<=86400 or not isinstance(token.get('scope'),str)):
                     raise ProviderUnavailable()
+                scopes=set(token['scope'].split())
+                if scopes-self.TOKEN_SCOPES:raise ProviderUnavailable()
                 self._token,self._expires = token['access_token'],self.clock()+token['expires_in']
-                self._scopes=set(token['scope'].split())
+                self._scopes=scopes
             if not set(required).issubset(self._scopes):raise ProviderUnavailable()
             return {'Authorization':'Bearer '+self._token}
 
@@ -102,7 +106,7 @@ class Cakto:
         return self.wire('GET','orders/'+identity+'/',headers=self.headers({'read','orders'}))
 
     def valid_webhook(self,raw,timestamp,signature):
-        if len(self.webhook_secret)<16 or not re.fullmatch(r'\d{10,12}',timestamp or ''):return False
+        if len(self.webhook_secret)<16 or not isinstance(timestamp,str) or not isinstance(signature,str) or not re.fullmatch(r'[0-9]{10,12}',timestamp):return False
         if abs(self.clock()-int(timestamp))>300:return False
         expected='v1='+hmac.new(self.webhook_secret.encode(),timestamp.encode()+b'.'+raw,hashlib.sha256).hexdigest()
-        return any(hmac.compare_digest(s.strip(),expected) for s in (signature or '').split(','))
+        return any(hmac.compare_digest(s.strip().encode('utf-8'),expected.encode('ascii')) for s in signature.split(','))
