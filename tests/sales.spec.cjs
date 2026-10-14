@@ -1,7 +1,37 @@
 const {test,expect}=require('@playwright/test');
 const fixture=require('./fixtures-sale-pix.json');
 const id='12345678-1234-1234-1234-123456789012';
-const base={purchase_id:id,product_name:'AFILIADOS QG BALTIGO',amount_cents:749,buyer_first_name:'Pessoa',status:'waiting_payment'};
+const base={purchase_id:id,product_name:'AFILIADOS QG BALTIGO',amount_cents:848,buyer_first_name:'Pessoa',status:'waiting_payment'};
+
+test('Pix expirado permite abrir outra compra sem gerar cobrança automaticamente',async({page})=>{
+ let creates=0,restarts=0;
+ await page.route('**/api/sales/**',route=>{
+  const endpoint=new URL(route.request().url()).pathname.split('/').pop();
+  if(endpoint==='pix')creates++;
+  if(endpoint==='restart')restarts++;
+  const result=endpoint==='config'?{available:true,product_name:base.product_name,amount_cents:848}:endpoint==='restart'?{status:'new'}:{...base,pix_expired:true};
+  return route.fulfill({contentType:'application/json',body:JSON.stringify(result)});
+ });
+ await page.goto('/afiliados.html');await expect(page.locator('#sale-restart')).toBeVisible();
+ await page.locator('#sale-restart').click();await expect(page.locator('#affiliate-form')).toBeVisible();
+ await expect(page.locator('#sale-name')).toHaveValue('');await expect(page.locator('#sale-consent')).not.toBeChecked();
+ await expect(page.locator('#sale-payment')).toBeHidden();expect(restarts).toBe(1);expect(creates).toBe(0);
+});
+
+test('taxa divergente bloqueia QR e novas tentativas',async({page})=>{
+ let creationCalls=0;
+ await page.route('**/api/sales/**',route=>{
+  if(route.request().url().endsWith('/pix'))creationCalls++;
+  const result=route.request().url().endsWith('/config')?{available:true,product_name:base.product_name,amount_cents:848}:{...base,status:'price_mismatch'};
+  return route.fulfill({contentType:'application/json',body:JSON.stringify(result)});
+ });
+ await page.goto('/afiliados.html');await expect(page.locator('#sale-payment')).toBeVisible();
+ await expect(page.locator('#sale-payment-description')).toContainText('valor diferente');
+ await expect(page.locator('#affiliate-form')).toBeHidden();await expect(page.locator('#sale-qr')).toBeHidden();
+ await expect(page.locator('#sale-copy')).toBeHidden();await expect(page.locator('#sale-badge')).not.toHaveText('Pagamento confirmado');
+ await page.locator('#sale-check').click();expect(creationCalls).toBe(0);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+});
 
 test('GitHub Pages abre checkout próprio sem visitar Cakto',async({page})=>{
  const fs=require('node:fs'),path=require('node:path');let caktoCalls=0;
@@ -9,7 +39,7 @@ test('GitHub Pages abre checkout próprio sem visitar Cakto',async({page})=>{
  const markup=fs.readFileSync(path.join(__dirname,'../afiliados.html'),'utf8');
  await page.route('https://qgbaltigo.github.io/emprestimofacil/afiliados.html',route=>route.fulfill({contentType:'text/html',body:markup}));
  await page.route('https://emprestimofacil.pro/afiliados.html',route=>route.fulfill({contentType:'text/html',body:markup}));
- await page.route('https://emprestimofacil.pro/api/sales/**',route=>route.fulfill({contentType:'application/json',body:JSON.stringify(route.request().url().endsWith('/config')?{available:true,product_name:base.product_name,amount_cents:749}:{status:'new'})}));
+ await page.route('https://emprestimofacil.pro/api/sales/**',route=>route.fulfill({contentType:'application/json',body:JSON.stringify(route.request().url().endsWith('/config')?{available:true,product_name:base.product_name,amount_cents:848}:{status:'new'})}));
  await page.goto('https://qgbaltigo.github.io/emprestimofacil/afiliados.html');
  await expect(page).toHaveURL('https://emprestimofacil.pro/afiliados.html');
  await expect(page.locator('#sale-generate')).toBeEnabled();await expect(page.locator('#affiliate-form')).toBeVisible();
@@ -18,8 +48,8 @@ test('GitHub Pages abre checkout próprio sem visitar Cakto',async({page})=>{
 });
 
 test('compra independente identificada, indisponível sem API e cadastro PF livre',async({page},info)=>{
- await page.route('**/api/sales/config',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({available:false,product_name:base.product_name,amount_cents:749})}));
- await page.goto('/afiliados.html');await expect(page.locator('h1')).toContainText('QG BALTIGO');await expect(page.locator('#sale-price')).toHaveText('R$ 7,49');
+ await page.route('**/api/sales/config',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({available:false,product_name:base.product_name,amount_cents:848})}));
+ await page.goto('/afiliados.html');await expect(page.locator('h1')).toContainText('QG BALTIGO');await expect(page.locator('#sale-price')).toHaveText('R$ 8,48');
  await expect(page.locator('#sale-service')).toContainText('temporariamente indisponível');await expect(page.locator('#sale-generate')).toBeDisabled();await expect(page.locator('.sale-separation')).toContainText('Independente do empréstimo');
  await expect(page.locator('#affiliate-form')).toBeVisible();await expect(page.locator('a[href*="cakto.com.br"]')).toHaveCount(0);
  await expect(page.locator('#sale-name')).toHaveAttribute('placeholder','Seu nome completo');await expect(page.locator('#sale-qr')).toBeHidden();
@@ -30,9 +60,9 @@ test('compra independente identificada, indisponível sem API e cadastro PF livr
 
 test('Pix Cakto: carregamento, máscara, cópia, expiração e pagamento confirmado pelo servidor',async({page},info)=>{
  let status='new',calls=0,resolve,wrong=false,expired=false;const gate=new Promise(r=>resolve=r);
- const view=()=>status==='new'?{status:'new'}:{...base,status,amount_cents:wrong?699:749,...(status==='waiting_payment'?(expired?{pix_expired:true}:{pix:{...fixture,expires_at:new Date(Date.now()+900000).toISOString(),server_time:Date.now()/1000}}):{}),...(status==='paid'?{support_url:'https://wa.me/5511912345678?text=Protocolo%20'+id}:{})};
+ const view=()=>status==='new'?{status:'new'}:{...base,status,amount_cents:wrong?699:848,...(status==='waiting_payment'?(expired?{pix_expired:true}:{pix:{...fixture,expires_at:new Date(Date.now()+900000).toISOString(),server_time:Date.now()/1000}}):{}),...(status==='paid'?{support_url:'https://wa.me/5511912345678?text=Protocolo%20'+id}:{})};
  await page.addInitScript(()=>{Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>window.copiedPix=text}});});
- await page.route('**/api/sales/**',async route=>{const path=new URL(route.request().url()).pathname;let result;if(path.endsWith('/config'))result={available:true,product_name:base.product_name,amount_cents:749};else if(path.endsWith('/pix')){calls++;const body=route.request().postDataJSON();expect(body.buyer.cpf).toBe('11144477735');expect(body.buyer.phone).toBe('11912345678');expect(body).not.toHaveProperty('amount');expect(route.request().headers()['idempotency-key']).toMatch(/^[0-9a-f-]{36}$/);await gate;status='waiting_payment';result=view();}else result=view();await route.fulfill({contentType:'application/json',body:JSON.stringify(result)});});
+ await page.route('**/api/sales/**',async route=>{const path=new URL(route.request().url()).pathname;let result;if(path.endsWith('/config'))result={available:true,product_name:base.product_name,amount_cents:848};else if(path.endsWith('/pix')){calls++;const body=route.request().postDataJSON();expect(body.buyer.cpf).toBe('11144477735');expect(body.buyer.phone).toBe('11912345678');expect(body).not.toHaveProperty('amount');expect(route.request().headers()['idempotency-key']).toMatch(/^[0-9a-f-]{36}$/);await gate;status='waiting_payment';result=view();}else result=view();await route.fulfill({contentType:'application/json',body:JSON.stringify(result)});});
  await page.goto('/afiliados.html');await expect(page.locator('#sale-generate')).toBeEnabled();await page.locator('#sale-generate').click();await expect(page.locator('#sale-name-error')).toContainText('nome e sobrenome');
  await page.locator('#sale-name').fill('Pessoa de Teste');await page.locator('#sale-email').fill('pessoa@example.test');await page.locator('#sale-cpf').fill('11144477735');await page.locator('#sale-phone').fill('11912345678');await expect(page.locator('#sale-phone')).toHaveValue('(11) 91234-5678');await expect(page.locator('#sale-cpf')).toHaveValue('111.444.777-35');await page.locator('#sale-consent').check();
  await page.locator('#sale-generate').click();await expect(page.locator('#sale-loading')).toBeVisible();expect(calls).toBe(1);resolve();await expect(page.locator('#sale-payment')).toBeVisible();await expect(page.locator('#sale-qr')).toBeVisible();await expect(page.locator('#sale-badge')).toHaveText('Aguardando confirmação');await page.locator('#sale-copy').click();expect(await page.evaluate(()=>window.copiedPix)).toBe(fixture.code);await expect(page.locator('#sale-message')).toContainText('copiado');
