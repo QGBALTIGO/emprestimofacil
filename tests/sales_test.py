@@ -149,6 +149,14 @@ class SalesTests(unittest.TestCase):
     def test_sales_flag_does_not_require_loan_collection_approval(self):
         with patch.dict('os.environ',{'CAKTO_CLIENT_ID':'test','CAKTO_CLIENT_SECRET':'test','CAKTO_WEBHOOK_SECRET':'test-secret-minimum-16','CAKTO_SALES_ENABLED':'true','CAKTO_LOAN_COLLECTION_APPROVED':'false','CAKTO_PAYMENTS_ENABLED':'false'}):
             self.assertTrue(SalesCakto().can_charge);self.assertFalse(Cakto().can_charge)
+    def test_public_checkout_responses_and_payment_support_have_no_brand(self):
+        self.assertNotIn('BALTIGO',self.client.get('/api/sales/config').text.upper())
+        self.start();r=self.buy();self.assertEqual(r.status_code,200)
+        self.assertNotIn('BALTIGO',r.text.upper());self.assertEqual(r.json()['product_name'],'Pagamento via Pix')
+        self.provider.status='paid';self.now+=20
+        with patch.dict('os.environ',{'BALTIGO_SUPPORT_WHATSAPP':'5511912345678'}):
+            paid=self.check();self.assertNotIn('BALTIGO',paid.text.upper())
+            self.assertEqual(paid.json()['status'],'paid');self.assertIn('support_url',paid.json())
 
     def test_documented_secret_authentication_never_trusts_notification_status(self):
         self.start();created=self.buy().json();order_id=next(iter(self.provider.orders))

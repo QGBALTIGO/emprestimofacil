@@ -1,7 +1,7 @@
 const {test,expect}=require('@playwright/test');
 const fixture=require('./fixtures-sale-pix.json');
 const id='12345678-1234-1234-1234-123456789012';
-const base={purchase_id:id,product_name:'AFILIADOS QG BALTIGO',amount_cents:848,buyer_first_name:'Pessoa',status:'waiting_payment'};
+const base={purchase_id:id,product_name:'Pagamento via Pix',amount_cents:848,buyer_first_name:'Pessoa',status:'waiting_payment'};
 
 test('Pix expirado permite abrir outra compra sem gerar cobrança automaticamente',async({page})=>{
  let creates=0,restarts=0;
@@ -49,8 +49,8 @@ test('GitHub Pages abre checkout próprio sem visitar Cakto',async({page})=>{
 
 test('compra independente identificada, indisponível sem API e cadastro PF livre',async({page},info)=>{
  await page.route('**/api/sales/config',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({available:false,product_name:base.product_name,amount_cents:848})}));
- await page.goto('/afiliados.html');await expect(page.locator('h1')).toContainText('QG BALTIGO');await expect(page.locator('#sale-price')).toHaveText('R$ 8,48');
- await expect(page.locator('#sale-service')).toContainText('temporariamente indisponível');await expect(page.locator('#sale-generate')).toBeDisabled();await expect(page.locator('.sale-separation')).toContainText('Independente do empréstimo');
+ await page.goto('/afiliados.html');await expect(page.locator('h1')).toHaveText('Pagamento via Pix');await expect(page.locator('#sale-price')).toHaveText('R$ 8,48');
+ await expect(page.locator('#sale-service')).toContainText('temporariamente indisponível');await expect(page.locator('#sale-generate')).toBeDisabled();await expect(page.locator('body')).not.toContainText(/Baltigo|afiliados|comunidade/i);
  await expect(page.locator('#affiliate-form')).toBeVisible();await expect(page.locator('a[href*="cakto.com.br"]')).toHaveCount(0);
  await expect(page.locator('#sale-name')).toHaveAttribute('placeholder','Seu nome completo');await expect(page.locator('#sale-qr')).toBeHidden();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
