@@ -26,9 +26,16 @@ test('admin MFA, readable records, private notes, protected files and pagination
   await expect(page.locator('#login [name=password]')).toHaveValue(account.password);
   const login=page.waitForResponse(response=>response.url().endsWith('/api/admin/login')&&response.request().method()==='POST');
   await page.locator('#login').getByRole('button',{name:'Entrar',exact:true}).click();expect((await login).status()).toBe(200);
-  await expect(page.locator('#panel')).toBeVisible();await expect(page.locator('#rows tr')).toHaveCount(25);
+  await expect(page.locator('#panel')).toBeVisible();await expect(page.locator('#rows tr')).toHaveCount(testInfo.project.use.viewport.width<=760?10:25);
+  await expect(page.locator('#rows .applicant-name').first()).toHaveText('Pessoa de Teste');
+  const cookies=await context.cookies();const sessionCookie=cookies.find(item=>item.name==='__Host-ef-admin');expect(sessionCookie.httpOnly).toBe(true);expect(sessionCookie.expires).toBeGreaterThan(Date.now()/1000+29*86400);
+  await page.reload();await expect(page.locator('#panel')).toBeVisible();await expect(page.locator('#login')).toBeHidden();
+  if([390,1440].includes(testInfo.project.use.viewport.width)){
+    const reopened=await browser.newContext({baseURL:fixture.origin,ignoreHTTPSErrors:true,storageState:await context.storageState(),extraHTTPHeaders:{'X-Test-Project':testInfo.project.name}});
+    try{const visit=await reopened.newPage();await visit.goto('/admin');await expect(visit.locator('#panel')).toBeVisible();await expect(visit.locator('#login')).toBeHidden();}finally{await reopened.close();}
+  }
   const firstPage=await page.locator('#rows tr td:first-child').allTextContents();
-  await expect(page.locator('#page-info')).toContainText(/Página 1 de [5-9]/);
+  await expect(page.locator('#page-info')).toContainText(/Página 1 de [1-9][0-9]*/);
   await page.getByRole('button',{name:'Próxima',exact:true}).click();await expect(page.locator('#page-info')).toContainText('Página 2');
   const secondPage=await page.locator('#rows tr td:first-child').allTextContents();expect(secondPage.some(id=>firstPage.includes(id))).toBeFalsy();
   await page.locator('#filters [name=q]').fill(account.record_id);await page.locator('#filters').getByRole('button',{name:'Filtrar',exact:true}).click();
@@ -46,6 +53,7 @@ test('admin MFA, readable records, private notes, protected files and pagination
   const saved=page.waitForResponse(response=>response.url().endsWith('/review')&&response.request().method()==='POST');
   await page.locator('#review').getByRole('button',{name:'Salvar andamento',exact:true}).click();expect((await saved).status()).toBe(200);
   await expect(page.locator('#message')).toContainText('Andamento atualizado.');
+  await expect(page.locator('#record-protocol strong')).toContainText('Complemento solicitado');
   const persisted=await context.request.get('/api/admin/records/initial/'+account.record_id);expect(persisted.status()).toBe(200);
   const reviewed=await persisted.json();expect(reviewed.review.internal_note).toBe(privateNote);expect(reviewed.review.message).toBe(message);
   await page.locator('#detail-close').click();
@@ -54,6 +62,27 @@ test('admin MFA, readable records, private notes, protected files and pagination
   await expect(page.locator('#data')).toContainText('Confirmações do cadastro');await expect(page.locator('#data')).toContainText('SMS não exigido');
   await expect(page.locator('#data')).toContainText('Contatos de familiares');
   const document=page.getByRole('link',{name:'Documento — frente Baixar arquivo'});await expect(document).toBeVisible();
+  await page.getByRole('button',{name:'▧ Documento — frente Visualizar documento',exact:true}).click();
+  await expect(page.locator('#media-viewer')).toBeVisible();await expect(page.locator('#media-content img')).toBeVisible();
+  await expect.poll(()=>page.locator('#media-content img').evaluate(image=>image.naturalWidth)).toBe(64);
+  const imageUrl=await page.locator('#media-content img').getAttribute('src');expect(imageUrl).toMatch(/^blob:/);
+  await page.locator('#media-zoom').click();await expect(page.locator('#media-zoom')).toHaveAttribute('aria-pressed','true');
+  await page.locator('#media-zoom').click();await expect(page.locator('#media-zoom')).toHaveAttribute('aria-pressed','false');
+  await page.locator('#media-next').click();await expect(page.locator('#media-title')).toHaveText('Documento — verso');
+  await page.locator('#media-next').click();await expect(page.locator('#media-content video')).toBeVisible();
+  const video=page.locator('#media-content video');
+  await expect.poll(()=>video.evaluate(element=>element.readyState>=1||element.error?.code===4)).toBe(true);
+  const noMp4Codec=process.platform==='win32'&&testInfo.project.use.browserName==='webkit'&&await video.evaluate(element=>element.error?.code===4);
+  if(noMp4Codec){
+    await expect(page.locator('#media-status')).toContainText('Este navegador não reproduziu o vídeo');
+    const bytes=await context.request.get('/api/admin/files/'+account.pf_id+'/video?preview=true');expect(bytes.status()).toBe(200);expect(bytes.headers()['content-type']).toBe('video/mp4');expect(bytes.headers()['cache-control']).toContain('no-store');
+    testInfo.annotations.push({type:'platform limitation',description:'Windows WebKit has no H.264 decoder; protected MP4 delivery and download fallback verified. Native Safari playback needs a real Apple device.'});
+  }else{
+    await expect.poll(()=>video.evaluate(element=>element.readyState)).toBeGreaterThanOrEqual(1);
+    await video.evaluate(element=>element.play());await expect.poll(()=>video.evaluate(element=>element.currentTime)).toBeGreaterThan(0);
+  }
+  await page.locator('#media-close').click();await expect(page.locator('#media-content')).toBeEmpty();
+  expect(await page.evaluate(async url=>{try{await fetch(url);return false;}catch{return true;}},imageUrl)).toBe(true);
   const windowsWebKit=process.platform==='win32'&&testInfo.project.use.browserName==='webkit';
   if(windowsWebKit){
     // The Windows WebKit harness does not emit a download event for this local

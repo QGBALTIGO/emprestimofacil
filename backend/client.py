@@ -22,9 +22,10 @@ def private_page(filename):
     page = (Path(__file__).parent / filename).read_text(encoding='utf-8')
     script = page.split('<script>')[1].split('</script>')[0]
     digest = base64.b64encode(hashlib.sha256(script.encode()).digest()).decode()
+    media_policy="img-src 'self' blob:; media-src 'self' blob:; frame-src blob:; " if filename=='admin-panel.html' else "img-src 'self'; "
     return HTMLResponse(page,headers={'Cache-Control':'private, no-store',
         'Content-Security-Policy':"default-src 'none'; script-src 'sha256-"+digest+"'; style-src 'unsafe-inline'; "
-            "connect-src 'self'; img-src 'self'; font-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"})
+            "connect-src 'self'; "+media_policy+"font-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'"})
 
 
 class ClientLogin(BaseModel):
