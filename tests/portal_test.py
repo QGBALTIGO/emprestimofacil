@@ -131,6 +131,47 @@ class PortalTests(unittest.TestCase):
         self.now+=900
         self.assertEqual(self.client.get('/api/admin/session').status_code,401)
 
+    def test_remembered_admin_survives_reopen_but_revokes_and_expires(self):
+        secret=pyotp.random_base32();password='Private test password 123'
+        create_administrator(self.private,'remembered@example.test',password,secret)
+        body={'username':'remembered@example.test','password':password,'code':pyotp.TOTP(secret).at(self.now),'remember':True}
+        result=self.post('/api/admin/login',body);self.assertEqual(result.status_code,200)
+        self.assertEqual(result.json()['expires_in'],2592000)
+        for flag in ['HttpOnly','Secure','SameSite=strict','Max-Age=2592000']:self.assertIn(flag,result.headers['set-cookie'])
+        token=self.client.cookies.get('__Host-ef-admin');self.assertNotIn(token.encode(),self.store.path.read_bytes())
+        self.now+=86400
+        second_token=secrets.token_urlsafe(32)
+        with self.store.connect() as db:db.execute('INSERT INTO admin_sessions VALUES (?,?,?)',(self.private.digest('admin-session',second_token),'remembered@example.test',self.now+86400))
+        with TestClient(self.app,base_url='https://example.test') as reopened:
+            reopened.cookies.set('__Host-ef-admin',token)
+            self.assertEqual(reopened.get('/api/admin/session').status_code,200)
+            self.assertEqual(reopened.post('/api/admin/logout-all',json={},headers={'Origin':'https://evil.test'}).status_code,403)
+            self.assertEqual(reopened.post('/api/admin/logout-all',json={},headers=self.headers).status_code,200)
+        self.assertEqual(self.client.get('/api/admin/records').status_code,401)
+        with TestClient(self.app,base_url='https://example.test') as other_device:
+            other_device.cookies.set('__Host-ef-admin',second_token)
+            self.assertEqual(other_device.get('/api/admin/records').status_code,401)
+        body['code']=pyotp.TOTP(secret).at(self.now)
+        self.assertEqual(self.post('/api/admin/login',body).status_code,200)
+        self.now+=2592000
+        self.assertEqual(self.client.get('/api/admin/session').status_code,401)
+
+    def test_private_previews_have_correct_types_ranges_and_no_anonymous_access(self):
+        self.admin();model=PF.model_validate(pf_payload())
+        identity,_=self.private.create_pf('synthetic-preview',model,str(uuid.uuid4()),{},30)
+        for kind,extension,raw,expected in [('front','jpg',b'\xff\xd8\xffsynthetic-image','image/jpeg'),('video','mp4',b'0000ftyp-synthetic-video','video/mp4'),('address_proof','pdf',b'%PDF-synthetic','application/pdf')]:
+            self.private.save_file(identity,kind,raw,extension)
+            url='/api/admin/files/'+identity+'/'+kind+'?preview=true'
+            response=self.client.get(url);self.assertEqual(response.content,raw);self.assertEqual(response.headers['content-type'],expected)
+            attachment=self.client.get(url.split('?')[0]);self.assertEqual(attachment.content,raw);self.assertTrue(attachment.headers['content-disposition'].startswith('attachment;'))
+            self.assertIn('no-store',response.headers['cache-control']);self.assertTrue(response.headers['content-disposition'].startswith('inline;'))
+            part=self.client.get(url,headers={'Range':'bytes=1-4'});self.assertEqual(part.status_code,206);self.assertEqual(part.content,raw[1:5])
+            self.assertEqual(self.client.get(url,headers={'Range':'bytes=99999-'}).status_code,416)
+            self.assertEqual(self.client.get(url,headers={'Range':'bytes=0-1,3-4'}).status_code,416)
+            with TestClient(self.app,base_url='https://example.test') as outsider:self.assertEqual(outsider.get(url).status_code,401)
+        self.assertIn('file_previewed',str(self.private.store.path.read_bytes()))
+        with self.store.connect() as db:self.assertEqual(db.execute("SELECT count(*) FROM access_audit WHERE action='file_downloaded'").fetchone()[0],3)
+
     def test_expired_or_replaced_invite_and_restore_invalidate_sessions(self):
         target=Path(self.temp.name)/'operator/invite.txt'
         first=administrator_invite(self.private,'owner@example.test','https://example.test',target).read_text().strip().split('#setup=')[1]

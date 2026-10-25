@@ -99,7 +99,7 @@ Cada `PUT /api/pf/applications/{id}/files/{kind}` envia os bytes do arquivo, at�
 
 Os documentos usam AES-256-GCM com nonce aleatório e vínculo ao registro, arquivos 0600, pastas 0700 e nomes aleatórios; não existem URLs públicas. A chave fica fora do Git e do backup. Esta proteção também depende do sistema operacional, dos acessos à VPS e da proteção da chave.
 
-O painel `/admin` permite consultar registros e baixar documentos. Exige senha de 12–128 caracteres e TOTP, tem limites de tentativas, bloqueia reutilização do código e encerra a sessão em 15 minutos. Crie um usuário por pessoa em terminal privado, com o ambiente do serviço carregado:
+O painel `/admin` permite consultar registros, visualizar fotos/vídeos e baixar documentos. Exige senha de 12–128 caracteres e TOTP, com limites de tentativas e bloqueio de reutilização do código. O login aceita `remember: true` para manter o aparelho conectado por até 30 dias; sem essa opção, mantém a sessão curta de 15 minutos. O formulário deixa a opção visível e marcada, destinada ao aparelho pessoal. O cookie opaco é Secure, HttpOnly, SameSite=Strict, com validade também conferida no servidor. Não há senha, token nem documento em localStorage ou cache público. Sair e Sair de todos os aparelhos revogam as sessões no servidor. Crie um usuário por pessoa em terminal privado, com o ambiente do serviço carregado:
 
 ```bash
 .venv/bin/python -m backend.maintenance admin-create
@@ -107,7 +107,7 @@ O painel `/admin` permite consultar registros e baixar documentos. Exige senha d
 
 O comando apresenta a configuração do autenticador apenas no terminal do operador e exige um código válido antes de criar o usuário. Não compartilhe essa chave. A trilha de acessos registra identidade opaca, ação, objeto e horário com cadeia HMAC, sem copiar CPF ou documentos. Ela não é imutável contra alguém que controla a VPS e a chave. A retenção documental não apaga essa trilha mínima; defina uma política separada para estes registros operacionais.
 
-`DATA_RETENTION_DAYS` é 30 por padrão (1–365); PF incompleto expira após um dia. Sessões deixam de dar acesso após duas horas e são removidas fisicamente na próxima manutenção. A rotina apaga registros expirados, documentos e órfãos e encaminha links conhecidos para revogação. `BACKUP_RETENTION_DAYS` é 7 por padrão: dados apagados do banco ativo podem persistir no backup por até sete dias adicionais, além do intervalo da rotina. A política da operação deve informar os prazos reais e a retenção no provedor.
+`DATA_RETENTION_DAYS` é 30 por padrão (1–365); PF incompleto expira após um dia. Sessões do cadastro PF deixam de dar acesso após duas horas e são removidas fisicamente na próxima manutenção. A rotina apaga registros expirados, documentos e órfãos e encaminha links conhecidos para revogação. `BACKUP_RETENTION_DAYS` é 7 por padrão: dados apagados do banco ativo podem persistir no backup por até sete dias adicionais, além do intervalo da rotina. A política da operação deve informar os prazos reais e a retenção no provedor.
 
 Instale os exemplos `emprestimofacil.service.example`, `emprestimofacil-maintenance.service.example` e `.timer.example`, ajustando usuário e caminhos. Use `/opt/emprestimofacil`, `/var/lib/emprestimofacil` e `/var/backups/emprestimofacil`; os diretórios privados pertencem ao usuário do serviço. O timer proposto executa descarte e backup às 03h diariamente, mas não é ativado automaticamente pelos arquivos. Verifique status/resultados e a fila de exclusão. O serviço usa um worker, apenas loopback, umask 0077, usuário dedicado e escrita limitada. Nunca sirva o diretório inteiro do repositório, arquivos de ambiente, banco ou backups pelo servidor web.
 
@@ -184,3 +184,12 @@ No plano gratuito do Resend, a aplicação reserva no máximo 100 tentativas de 
 Na VPS, `MAX_PRIVATE_STORAGE_MB=6144`, `MIN_FREE_DISK_MB=5120` e `MemoryMax=768M` foram aplicados somente a esta operação. Nginx serve início/termos/arquivos públicos, comprime HTML e mantém cache público curto; APIs e portais privados continuam com `no-store`. O backup SQLite permanece consistente, e arquivos criptografados imutáveis são reaproveitados entre backups por hard links, sem vincular o backup aos documentos ativos. Restaurar invalida sessões. Backups locais e restauração foram conferidos; cópia fora da VPS não foi homologada.
 
 O relatório `RELATORIO-CAMPANHA-20261014.md` registra medições, cobertura e limites. Os testes não comprovam uma jornada completa de 200 pessoas usando simultaneamente câmera, códigos e pagamentos reais. O limite de e-mail pode pausar novas confirmações PF antes desse volume, independentemente da capacidade de visitas. Condições de pagamento existentes foram preservadas; pagamentos diários não foram implementados nesta revisão.
+
+
+### Painel e mídia — 25/10/2026
+
+A lista privada exibe o nome do solicitante, protocolo, tipo, situação e recebimento; o celular usa cartões e dez resultados por página, com seleção de 10/25/50. Indicadores principais filtram a fila, e cotas, integrações, parcelas e sessão ficam em grupos recolhidos. Os dados do titular são separados por assunto, com notas internas independentes da mensagem enviada ao cliente.
+
+`GET /api/admin/files/{identity}/{kind}?preview=true` mantém a mesma autenticação, retenção e auditoria do download. Aceita somente tipos conhecidos, retorna o MIME correto e `private, no-store`, e atende um único trecho de bytes; trechos inválidos retornam 416. O visualizador usa URLs blob apenas em memória, reproduz vídeo sem autoplay, amplia imagens e permite navegar ou baixar o arquivo. Fechar, trocar o cadastro ou sair aborta carregamentos e libera a mídia; não há links públicos. PDFs dependem do visualizador do navegador e mantêm download como alternativa.
+
+A sessão é revalidada ao reabrir o painel, ao voltar à janela e periodicamente. Erro temporário de conexão tenta novamente, sem apagar um login ainda válido; resposta 401 limpa a tela. Navegação e restauração do histórico limpam dados privados antes de reconsultar a sessão.

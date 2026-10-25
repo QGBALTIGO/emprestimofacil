@@ -83,6 +83,7 @@ def install_admin(app, security):
             private.audit(private.digest('admin-actor',body.username),'admin_login_failed')
             raise HTTPException(401,'Usuário, senha ou código inválido.')
         token = secrets.token_urlsafe(32)
+        lifetime=30*86400 if body.remember else 900
         with private.store.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             changed = db.execute('UPDATE administrators SET last_step=? WHERE username=? AND last_step<?',(step,body.username,step))
@@ -91,10 +92,20 @@ def install_admin(app, security):
             prior = request.cookies.get(COOKIE)
             if prior:
                 db.execute('DELETE FROM admin_sessions WHERE id=?',(private.digest('admin-session',prior),))
-            db.execute('INSERT INTO admin_sessions VALUES (?,?,?)',(private.digest('admin-session',token),body.username,now+900))
-        response.set_cookie(COOKIE,token,max_age=900,httponly=True,secure=True,samesite='strict',path='/')
+            db.execute('INSERT INTO admin_sessions VALUES (?,?,?)',(private.digest('admin-session',token),body.username,now+lifetime))
+        response.set_cookie(COOKIE,token,max_age=lifetime,httponly=True,secure=True,samesite='strict',path='/')
         private.audit(private.digest('admin-actor',body.username),'admin_login')
-        return {'status':'authenticated','expires_in':900}
+        return {'status':'authenticated','expires_in':lifetime}
+
+    @app.post('/api/admin/logout-all')
+    def logout_all(request:Request,response:Response):
+        key,actor=session(request)
+        with security.private.store.connect() as db:
+            row=db.execute('SELECT username FROM admin_sessions WHERE id=?',(key,)).fetchone()
+            if row:db.execute('DELETE FROM admin_sessions WHERE username=?',(row[0],))
+        response.delete_cookie(COOKIE,secure=True,httponly=True,samesite='strict',path='/')
+        security.private.audit(actor,'admin_logout_all')
+        return {'status':'closed'}
 
     @app.post('/api/admin/logout')
     def logout(request: Request,response: Response):
@@ -133,7 +144,17 @@ def install_admin(app, security):
             rows=db.execute('SELECT * FROM ('+combined+')'+where+' ORDER BY created DESC,id DESC LIMIT ? OFFSET ?',
                             (*params,page_size,(page-1)*page_size)).fetchall()
         security.private.audit(actor,'records_listed')
-        return {'records':[{'id':r[0],'kind':r[1],'status':r[2],'created_at':datetime.fromtimestamp(r[3],timezone.utc).isoformat()} for r in rows],
+        def display_name(identity,kind):
+            private=security.private
+            if kind=='pf':data,_=private.pf(identity)
+            else:
+                from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+                with private.store.connect() as db:encrypted=db.execute('SELECT nonce,ciphertext FROM applications WHERE application_id=?',(identity,)).fetchone()
+                if not encrypted:return 'Cadastro'
+                data=__import__('json').loads(AESGCM(private.key).decrypt(encrypted[0],encrypted[1],identity.encode()))
+            return data.get('applicant',{}).get('full_name','Cadastro')
+        return {'records':[{'id':r[0],'kind':r[1],'status':r[2],'created_at':datetime.fromtimestamp(r[3],timezone.utc).isoformat(),
+                            'display_name':display_name(r[0],r[1])} for r in rows],
                 'page':page,'page_size':page_size,'total':total,'total_pages':max(1,(total+page_size-1)//page_size)}
 
     @app.get('/api/admin/records/{kind}/{identity}')
@@ -263,10 +284,27 @@ def install_admin(app, security):
         return {'status':'created'}
 
     @app.get('/api/admin/files/{identity}/{kind}')
-    def file(identity: str,kind: str,request: Request):
+    def file(identity: str,kind: str,request: Request,preview:bool=False):
         _,actor = session(request)
         security.private.pf(identity)
         raw,extension = security.private.file(identity,kind)
+        if preview:
+            types={'jpg':'image/jpeg','png':'image/png','webm':'video/webm','mp4':'video/mp4','pdf':'application/pdf'}
+            if extension not in types:raise HTTPException(415,'Este arquivo está disponível somente para download.')
+            security.private.audit(actor,'file_previewed',identity+':'+kind)
+            headers={'Content-Disposition':'inline; filename="'+kind+'.'+extension+'"',
+                     'Cache-Control':'private, no-store','Content-Security-Policy':"default-src 'none'; sandbox",
+                     'Accept-Ranges':'bytes','X-Content-Type-Options':'nosniff'}
+            requested=request.headers.get('range');status=200
+            if requested:
+                import re
+                match=re.fullmatch(r'bytes=([0-9]*)-([0-9]*)',requested)
+                if not match or not any(match.groups()) or len(requested)>80:
+                    raise HTTPException(416,'Trecho inválido.',headers={'Content-Range':'bytes */'+str(len(raw))})
+                a,b=match.groups();start=int(a) if a else max(0,len(raw)-int(b));end=min(int(b),len(raw)-1) if a and b else len(raw)-1
+                if start>end or start>=len(raw):raise HTTPException(416,'Trecho inválido.',headers={'Content-Range':'bytes */'+str(len(raw))})
+                headers['Content-Range']=f'bytes {start}-{end}/{len(raw)}';raw=raw[start:end+1];status=206
+            return Response(raw,status_code=status,media_type=types[extension],headers=headers)
         security.private.audit(actor,'file_downloaded',identity+':'+kind)
         return Response(raw,media_type='application/octet-stream',headers={
             'Content-Disposition':'attachment; filename="'+kind+'.'+extension+'"',
