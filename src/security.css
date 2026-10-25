@@ -12,3 +12,5 @@
 @media(max-width:599px){.security-panel,.bank-security-panel{padding:16px}.security-contact{padding:16px}.security-contact-actions>*{width:100%}}
 
 .security-contact-grid.is-email-only{grid-template-columns:1fr}
+
+#cadastro-pf .security-panel{border:1px solid #dce8df;background:#f5f9f6;border-radius:14px;padding:22px;margin-top:26px}#cadastro-pf .security-panel>h3{font-size:18px;color:#173d30}#cadastro-pf .security-panel>p{font-size:13px;line-height:1.8}#cadastro-pf .security-contact{background:#fff;border:1px solid #dce8df;border-radius:12px;padding:18px}#cadastro-pf .security-contact h4{font-size:14px;color:#173d30}#cadastro-pf .security-contact input{font-size:20px;max-width:240px;height:50px;border-radius:9px;letter-spacing:6px}#cadastro-pf .security-contact-actions{gap:10px}#cadastro-pf .security-status-badge{font-size:11px;padding:5px 9px}#cadastro-pf .security-message{font-size:13px;line-height:1.8;overflow-wrap:anywhere}@media(max-width:599px){#cadastro-pf .security-panel{padding:16px}#cadastro-pf .security-contact{padding:16px}#cadastro-pf .security-contact input{width:100%;max-width:none}#cadastro-pf .security-contact-actions{flex-direction:column}}
